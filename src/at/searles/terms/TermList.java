@@ -64,20 +64,21 @@ public class TermList implements Iterable<Term> {
 
     @Override
     public Iterator<Term> iterator() {
+        // The iterator is a bit tricky. I want to allow for live-updates, thus the last returned node is stored
+        // (null in the beginning)
         return new Iterator<Term>() {
 
-            Node ptr = head;
+            Node ptr = null;
 
             @Override
             public boolean hasNext() {
-                return ptr != null;
+                return (ptr == null && head != null) || (ptr != null && ptr.next != null);
             }
 
             @Override
             public Term next() {
-                Term t = ptr.value;
-                ptr = ptr.next;
-                return t;
+                ptr = ptr == null ? head : ptr.next;
+                return ptr.value;
             }
         };
     }

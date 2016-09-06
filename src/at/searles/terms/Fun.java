@@ -108,6 +108,39 @@ public class Fun extends Term {
 		}
 	}
 
+
+	@Override
+	protected boolean auxUnify(Term that) {
+		if(that instanceof Fun) {
+			Fun fun = (Fun) that;
+
+			if(f.equals(fun.f) && args.size() == fun.args.size()) {
+				// unify subterms
+				for(int i = 0; i < args.size(); ++i) {
+					// this is why I use an ArrayList
+					if(!args.get(i).unify(fun.args.get(i))) {
+						// no match in ith argument
+						for(int k = 0; k < i; ++k) {
+							// unmatch all up to i.
+							args.get(k).ununify();
+							fun.args.get(k).ununify();
+						}
+
+						return false;
+					}
+				}
+
+				return true;
+			} else {
+				// clash
+				return false;
+			}
+		} else {
+			// clash
+			return false;
+		}
+	}
+
 	/*@Override
 	public Term copy(List<Term> subterms) {
 		// check for identity while we're at it.

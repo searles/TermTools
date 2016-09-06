@@ -33,6 +33,12 @@ public class LambdaVar extends Term {
 		return false;
 	}
 
+	@Override
+	protected boolean auxUnify(Term that) {
+		// link in this must be set and point to that. But this is already checked before in match-method.
+		return false;
+	}
+
 	/*@Override
 	public Term copy(List<Term> subterms) {
 		return this;

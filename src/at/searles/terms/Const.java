@@ -38,6 +38,12 @@ public class Const<T> extends Term {
 		return (that instanceof Const) && value.equals(((Const) that).value);
 	}
 
+	@Override
+	protected boolean auxUnify(Term that) {
+		// same as match...
+		return auxMatch(that);
+	}
+
 	/*@Override
 	public Term copy(List<Term> subterms) {
 		return this;

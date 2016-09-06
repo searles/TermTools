@@ -7,40 +7,37 @@ import at.searles.terms.Term;
 import at.searles.terms.TermList;
 import at.searles.terms.TermParserBuilder;
 
+import java.util.function.Function;
+
 public class RewriteRule implements Rule {
 	// do I need the builder? Yes, because of lexer.
-	public static class ParserBuilder extends TermParserBuilder {
-
-		public static final ParserBuilder RULEBUILDER = new ParserBuilder(new Lexer());
+	public static class RuleParser extends Parser<Rule> {
 
 		final Parser<String> to;
+		final TermParserBuilder parent;
+		final Function<String, Boolean> isVar;
 
-		protected ParserBuilder(Lexer l) {
-			super(l);
+		public RuleParser(Lexer l, Function<String, Boolean> isVar) {
+			this.isVar = isVar;
+			parent = new TermParserBuilder(l);
 			this.to = l.tok("->");
 		}
 
-		public Parser<Rule> ruleParser(TermList list) {
-			return new RuleParser();
-		}
+		@Override
+		public Rule parse(Buffer buf) {
+			TermList list = new TermList();
 
-		protected class RuleParser extends Parser<Rule> {
-			@Override
-			public Rule parse(Buffer buf) {
-				TermList list = new TermList();
+			TermParserBuilder.TermParser tp = parent.new TermParser(list, isVar); // TermParser is not static and thus uses the outer lexer.
 
-				TermParser tp = new TermParser(list); // TermParser is not static and thus uses the outer lexer.
-
-				return tp.expr.then(to.thenRight(tp.expr)).map(
-						concat -> new RewriteRule(list, concat.a.value, concat.b.value)
-				).parse(buf);
-			}
+			return tp.expr.then(to.thenRight(tp.expr)).map(
+					concat -> new RewriteRule(list, concat.a.value, concat.b.value)
+			).parse(buf);
 		}
 	}
 
 	// fixme maybe the next ones should be Term?
-	final Term l;
-	final Term r;
+	private final Term l;
+	private final Term r;
 
 	private RewriteRule(TermList list, Term l, Term r) {
 		this.l = l;
@@ -61,5 +58,9 @@ public class RewriteRule implements Rule {
 		} else {
 			return null;
 		}
+	}
+
+	public String toString() {
+		return l + " -> " + r;
 	}
 }

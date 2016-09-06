@@ -211,42 +211,9 @@ public abstract class Term {
 			}
 		}
 	}
+	*/
 
-
-
-	/**
-	 * matches the arguments in both iterators in the given order.
-	 * If they are not matching, ie this procedure returnes false, the link-field
-	 * will be reset. Should always call clash before.
-	 * @param sarg
-	 * @param targ
-	 * @return
-	 *
-	protected static boolean matchArgs(Iterator<TermNode> sarg, Iterator<TermNode> targ) {
-		if(sarg.hasNext() && targ.hasNext()) {
-			Term s = sarg.next().term();
-			Term t = targ.next().term();
-
-			if(!s.match(t)) {
-				return false;
-			} else {
-				if(!matchArgs(sarg, targ)) {
-					// if the remaining arguments are not unifiable
-					// we have to reset this one.
-					s.unlink();
-
-					return false;
-				} else {
-					return true;
-				}
-			}
-		} else {
-			//if(sarg.hasNext() || targ.hasNext()) throw new AssertionError();
-			return !sarg.hasNext(); // the only case in which this does not clash is when sarg is a var.
-		}
-	}*/
-
-	int mark = 0; // for some algorithms, eg match
+	private int mark = 0; // for some algorithms, eg match and unification use this field
 
 	/**
 	 * Sets 'link' in variables such that  this and that term. If they are ununifiable, false is returned, otherwise,
@@ -286,6 +253,56 @@ public abstract class Term {
 			}
 		}
 	}
+
+	/**
+	 * Sets 'link' in variables such that  this and that term. If they are ununifiable, false is returned, otherwise,
+	 * the link-field is set in each term.
+	 * @param that
+	 * @return
+	 */
+	public boolean unify(Term that) {
+		mark = 1; // mark both terms to know which ones were used in unify (necessary for ununify)
+		that.mark = 1;
+
+		if(this == that) return true;
+		else if(this.link != null) return this.link.unify(that);
+		else if(that.link != null) return this.unify(that.link);
+		else if(this instanceof Var || !(that instanceof Var)) {
+			if(auxUnify(that)) {
+				// link is set inside auxUnify
+				if(closed()) this.link = that;
+				return true;
+			} else {
+				return false;
+			}
+		} else /*if(that instanceof Var)*/ {
+			// same as in Var
+			that.link = this;
+			return true;
+		}
+	}
+
+	protected abstract boolean auxUnify(Term that);
+
+	/**
+	 * Since not in all terms link is set, I need mark in match and unmatch.
+	 */
+	public void ununify() {
+		if(mark == 1) {
+			mark = 0;
+
+			if(link != null) {
+				link = null;
+			}
+
+			link = null;
+
+			for(Term subterm : subterms()) {
+				subterm.unmatch();
+			}
+		}
+	}
+
 
 
 

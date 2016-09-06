@@ -92,6 +92,26 @@ public class Lambda extends Term {
 		return false;
 	}
 
+
+	@Override
+	protected boolean auxUnify(Term that) {
+		// this only works if terms are in some normalform (like beta-eta NF).
+		if(that instanceof Lambda) {
+			Lambda l = (Lambda) that;
+
+			lv.link = l.lv; // careful, lambda variables may have different indices.
+
+			boolean ret = t.unify(l.t);
+
+			// unset link that was set before
+			lv.link = null;
+
+			return ret;
+		}
+
+		return false;
+	}
+
 	protected String str() {
 		// debruijn index is by 1 too high (which is better for some algorithms!)
 		return "\\" + (level - 1) + "." + t;

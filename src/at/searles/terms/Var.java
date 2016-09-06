@@ -43,6 +43,11 @@ public class Var extends Term {
 		return true;
 	}
 
+	@Override
+	protected boolean auxUnify(Term that) {
+		return true;
+	}
+
 	/*@Override
 	public Term copy(List<Term> subterms) {
 		return this;

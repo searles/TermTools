@@ -89,6 +89,26 @@ public class App extends Term {
 		}
 	}
 
+	@Override
+	protected boolean auxUnify(Term that) {
+		if(that instanceof App) {
+			App a = (App) that;
+			if(l.unify(a.l)) {
+				if(r.unify(a.r)) {
+					return true;
+				} else {
+					l.ununify();
+					a.l.ununify();
+					return false;
+				}
+			} else {
+				return false;
+			}
+		} else {
+			return false;
+		}
+	}
+
 	protected String str() {
 		String sl = l.toString();
 		String sr = r.toString();

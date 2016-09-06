@@ -5,8 +5,7 @@ import at.searles.parsing.parser.Parser;
 import at.searles.parsing.regex.Lexer;
 
 import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.function.Function;
 
 /**
  * Class to return a parser object that then can be used to parse higher order expressions.
@@ -18,19 +17,19 @@ public class TermParserBuilder {
 
 	private final Lexer l;
 
-    private final Parser<String> openpar;
-    private final Parser<String> closepar;
-    private final Parser<String> dot;
-    private final Parser<String> backslash;
-    private final Parser<String> id;
-    private final Parser<String> num;
+    public final Parser<String> openpar;
+	public final Parser<String> closepar;
+	public final Parser<String> dot;
+	public final Parser<String> backslash;
+	public final Parser<String> id;
+	public final Parser<String> num;
 
     /**
      * Creates a new TermParserBuilder. Another lexer can be passed as an argument.
      * @param l possibly pre-initialized lexer. Be careful, because certain tokens are needed. Check code of
 	 *          constructor to see which ones ( '(', ')', '.', '\', ids, nums.
      */
-    protected TermParserBuilder(Lexer l) {
+	public TermParserBuilder(Lexer l) {
         this.l = l;
 
         l.addIgnore(" ");
@@ -42,8 +41,8 @@ public class TermParserBuilder {
         num = l.match("[0-9]+");
     }
 
-    public Parser<Term> parser(TermList list) {
-        return new TermParser(list);
+    public Parser<Term> parser(TermList list, Function<String, Boolean> isVar) {
+        return new TermParser(list, isVar);
     }
 
     /**
@@ -53,20 +52,22 @@ public class TermParserBuilder {
 
 		final TermList list;
 		public final Parser.PostInit<TermList.Node> expr;
+		final Function<String, Boolean> isVar;
 
 		/**
 		 * Constructor. It initializes a bunch of parsers
 		 * @param list list to which the parsed terms should be added.
          */
-		public TermParser(TermList list) {
+		public TermParser(TermList list, Function<String, Boolean> isVar) {
 			this.list = list;
+			this.isVar = isVar;
 
 			this.expr = new Parser.PostInit<>();
 
 			// Now for the parsers
 			Parser<TermList.Node> integer = num.map(i -> Const.create(list, i));
 
-			Parser<TermList.Node> var = id.map(s -> Var.create(list, s));
+			Parser<TermList.Node> var = id.map(s -> isVar.apply(s) ? Var.create(list, s) : Const.create(list, s));
 
 			/**
 			 * lambda = '\' id+ '.' expr
@@ -118,41 +119,6 @@ public class TermParserBuilder {
 
 			expr.set(apps);
 		}
-
-
-
-		/* FIXME move to other class
-		public Parser<RewriteRule> rule = term.then(to.thenRight(term)).map(new Parser.Fn<RewriteRule, Concat<Term, Term>>() {
-			@Override
-			public RewriteRule apply(Concat<Term, Term> lr) {
-				return new RewriteRule(lr.a, lr.b);
-			}
-		});*/
-
-
-		/*Parser<List<Term>> termlist = term.then(comma.thenRight(term).rep(true)).map(termRepConcat -> {
-			List<Term> args = new LinkedList<>();
-			args.add(termRepConcat.a);
-			args.addAll(termRepConcat.b.asList());
-			return args;
-		});
-
-		Parser<Term> fnApp = id.then(
-				openpar.thenRight(termlist.opt()).thenLeft(closepar).opt()).map(stringOptionConcat -> {
-			if (!stringOptionConcat.b.isDef) {
-				return addToQueue(new Var(stringOptionConcat.a));
-				// if defined, it is a at.searles.terms.Fun
-			} else {
-				if (!stringOptionConcat.b.get().isDef) {
-					// it is a constant
-					return addToQueue(new Fun(stringOptionConcat.a));
-				} else {
-					return addToQueue(new Fun(stringOptionConcat.a, stringOptionConcat.b.get().get()));
-				}
-			}
-		});*/
-
-
 
         @Override
         public Term parse(Buffer buf) {
