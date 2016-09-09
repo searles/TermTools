@@ -1,12 +1,13 @@
 package at.searles.terms;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Stack;
 
 public class LambdaVar extends Term {
 
-	public static TermList.Node create(TermList list, int index) {
-		return list.assertInList(new LambdaVar(index), null);
+	public static Term create(TermList list, int index) {
+		return list.findOrAppend(new LambdaVar(index), null);
 	}
 
 	final int index;
@@ -18,8 +19,8 @@ public class LambdaVar extends Term {
 	}
 
 	@Override
-	public Iterable<Term> subterms() {
-		return EMPTY_SUBTERMS;
+	public TermIterator argsIterator() {
+		return Term.EMPTY_SUBTERMS;
 	}
 
 	@Override
@@ -39,8 +40,13 @@ public class LambdaVar extends Term {
 		return false;
 	}
 
+	@Override
+	public Term copy(TermList list, List<Term> args) {
+		return LambdaVar.create(list, index);
+	}
+
 	/*@Override
-	public Term copy(List<Term> subterms) {
+	public Term copy(List<Term> args) {
 		return this;
 	}*/
 
@@ -49,16 +55,23 @@ public class LambdaVar extends Term {
 	}
 
 	@Override
-	void auxInitLevel(List<LambdaVar> lvs) {
+	public void auxInitLevel(List<LambdaVar> lvs) {
 		lvs.add(this);
 		insertLevel = 0;
 		insertedClosed = false;
+		linkSet = false;
 	}
 
 	@Override
-	TermList.Node auxInsert(TermList list) {
+	protected Term auxInsert(TermList list) {
 		// avoid creating too many objects.
 		int newIndex = insertIndices.isEmpty() ? index : insertIndices.peek();
-		return list.assertInList(newIndex == index ? this : new LambdaVar(newIndex), null);
+		return list.findOrAppend(newIndex == index ? this : new LambdaVar(newIndex), null);
 	}
+
+	/*@Override
+	protected Term auxShallowInsert(TermList list, Map<String, String> renaming) {
+		// avoid creating too many objects.
+		return LambdaVar.create(list, index);
+	}*/
 }

@@ -2,6 +2,7 @@ package at.searles.terms;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public class App extends Term {
 
@@ -15,9 +16,9 @@ public class App extends Term {
 	 * @param r
      * @return
      */
-	public static TermList.Node create(TermList list, TermList.Node l, TermList.Node r) {
+	public static Term create(TermList list, Term l, Term r) {
 		// l and r must be in list!
-		return list.assertInList(new App(l.value, r.value),
+		return list.findOrAppend(new App(l, r),
 				l.index > r.index ? l : r);
 	}
 
@@ -31,43 +32,56 @@ public class App extends Term {
 	}
 
 	@Override
-	public Iterable<Term> subterms() {
-		return () -> new Iterator<Term>() {
-				int i = -1;
+	public TermIterator argsIterator() {
+		return new TermIterator() {
+			int i = -1;
 
-				@Override
-				public boolean hasNext() {
-					return i < 1;
-				}
+			@Override
+			public boolean hasNext() {
+				return i < 1;
+			}
 
-				@Override
-				public Term next() {
-					i++;
-					return i == 0 ? l : r;
-				}
-			};
+			@Override
+			public Term next() {
+				i++;
+				return i == 0 ? l : r;
+			}
+
+			@Override
+			public Term replace(Term u) {
+				if(u.parent != parent) throw new IllegalArgumentException();
+
+				return App.create(parent, i == 0 ? u : l, i == 1 ? u : r);
+			}
+		};
 	}
 
 	@Override
-	void auxInitLevel(List<LambdaVar> lvs) {
+	public void auxInitLevel(List<LambdaVar> lvs) {
 		l.initLevel(lvs);
 		r.initLevel(lvs);
 
 		insertLevel = Math.max(l.insertLevel, r.insertLevel);
 		insertedClosed = l.insertedClosed && r.insertedClosed;
+		linkSet = l.linkSet || r.linkSet;
 	}
 
 	@Override
-	TermList.Node auxInsert(TermList list) {
-		TermList.Node ln = l.insertInto(list);
-		TermList.Node rn = r.insertInto(list);
+	protected Term auxInsert(TermList list) {
+		Term ln = l.insertInto(list);
+		Term rn = r.insertInto(list);
 
 		return App.create(list, ln, rn);
 	}
 
+	/*@Override
+	Term auxShallowInsert(TermList target, Map<String, String> renaming) {
+		return create(target, l.shallowInsertInto(target, renaming), r.shallowInsertInto(target, renaming));
+	}*/
+
 	@Override
 	public boolean eq(Term t) {
-		return t instanceof App && Term.checkIdenticalSubterms(this.subterms(), t.subterms());
+		return t instanceof App && l == ((App) t).l && r == ((App) t).r;
 	}
 
 	@Override
@@ -107,6 +121,11 @@ public class App extends Term {
 		} else {
 			return false;
 		}
+	}
+
+	@Override
+	public Term copy(TermList list, List<Term> args) {
+		return App.create(list, args.get(0), args.get(1));
 	}
 
 	protected String str() {

@@ -3,13 +3,14 @@ package at.searles.terms;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Map;
 
 public class Lambda extends Term {
 
-	public static TermList.Node create(TermList list, TermList.Node t) {
-		TermList.Node v = LambdaVar.create(list, t.value.level); // it is a new node. No link is set.
+	public static Term create(TermList list, Term t) {
+		Term v = LambdaVar.create(list, t.level); // it is a new node. No link is set.
 
-		return list.assertInList(new Lambda(t.value, (LambdaVar) v.value),
+		return list.findOrAppend(new Lambda(t, (LambdaVar) v),
 				t.index > v.index ? t : v);
 	}
 
@@ -24,25 +25,31 @@ public class Lambda extends Term {
 	}
 
 	@Override
-	public Iterable<Term> subterms() {
-		return () -> new Iterator<Term>() {
-			int hasNext = -1;
+	public TermIterator argsIterator() {
+		return new TermIterator() {
+			boolean hasNext = true;
 
 			@Override
 			public boolean hasNext() {
-				return hasNext < 1;
+				return hasNext;
 			}
 
 			@Override
 			public Term next() {
-				hasNext++;
-				return hasNext == 0 ? lv : t;
+				hasNext = false;
+				return t;
+			}
+
+			@Override
+			public Term replace(Term u) {
+				if(u.parent != parent) throw new IllegalArgumentException();
+				return create(parent, u);
 			}
 		};
 	}
 
 	@Override
-	void auxInitLevel(List<LambdaVar> lvs) {
+	public void auxInitLevel(List<LambdaVar> lvs) {
 		t.initLevel(lvs);
 
 		insertLevel = t.insertLevel + 1;
@@ -57,16 +64,22 @@ public class Lambda extends Term {
 		}
 
 		insertedClosed = lvs.isEmpty();
+		linkSet = t.linkSet;
 	}
 
 	@Override
-	TermList.Node auxInsert(TermList list) {
+	protected Term auxInsert(TermList list) {
 		lv.insertIndices.push(insertLevel - 1);
-		TermList.Node ret = Lambda.create(list, t.insertInto(list));
+		Term ret = Lambda.create(list, t.insertInto(list));
 		lv.insertIndices.pop();
 
 		return ret;
 	}
+
+	/*@Override
+	protected Term auxShallowInsert(TermList list, Map<String, String> renaming) {
+		return Lambda.create(list, t.shallowInsertInto(list, renaming));
+	}*/
 
 	@Override
 	public boolean eq(Term t) {
@@ -110,6 +123,11 @@ public class Lambda extends Term {
 		}
 
 		return false;
+	}
+
+	@Override
+	public Term copy(TermList list, List<Term> args) {
+		return Lambda.create(list, args.get(0));
 	}
 
 	protected String str() {

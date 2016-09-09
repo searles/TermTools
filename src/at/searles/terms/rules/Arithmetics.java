@@ -132,7 +132,7 @@ public class Arithmetics {
 
 	// (x * 2) * (4 * y) -->
 
-	static final RewriteSystem sys = new RewriteSystem(rules);
+	static final TRS sys = new TRS(rules);
 
 	public static TermNode solve(TermNode t) {
 		return sys.apply(t, new TreeMap<>());

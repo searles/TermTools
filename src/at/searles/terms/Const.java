@@ -1,11 +1,12 @@
 package at.searles.terms;
 
 import java.util.List;
+import java.util.Map;
 
 public class Const<T> extends Term {
 
-	public static <T> TermList.Node create(TermList list, T value) {
-		return list.assertInList(new Const(value), null);
+	public static <T> Term create(TermList list, T value) {
+		return list.findOrAppend(new Const<>(value), null);
 	}
 
 	final T value;
@@ -24,7 +25,7 @@ public class Const<T> extends Term {
 	}
 
 	@Override
-	public Iterable<Term> subterms() {
+	public TermIterator argsIterator() {
 		return Term.EMPTY_SUBTERMS;
 	}
 
@@ -44,8 +45,13 @@ public class Const<T> extends Term {
 		return auxMatch(that);
 	}
 
+	@Override
+	public Term copy(TermList list, List<Term> args) {
+		return Const.create(list, this.value);
+	}
+
 	/*@Override
-	public Term copy(List<Term> subterms) {
+	public Term copy(List<Term> args) {
 		return this;
 	}*/
 
@@ -54,13 +60,19 @@ public class Const<T> extends Term {
 	}
 
 	@Override
-	void auxInitLevel(List<LambdaVar> lvs) {
+	public void auxInitLevel(List<LambdaVar> lvs) {
 		insertLevel = 0;
 		insertedClosed = true;
+		linkSet = false;
 	}
 
 	@Override
-	TermList.Node auxInsert(TermList list) {
-		return list.assertInList(this, null);
+	protected Term auxInsert(TermList list) {
+		return list.findOrAppend(new Const<>(value), null);
 	}
+
+	/*@Override
+	Term auxShallowInsert(TermList target, Map<String, String> renaming) {
+		return target.findOrAppend(new Const<>(value), null);
+	}*/
 }

@@ -2,11 +2,12 @@ package at.searles.terms;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public class Var extends Term {
 
-	public static TermList.Node create(TermList list, String id) {
-		return list.assertInList(new Var(id), null);
+	public static Term create(TermList list, String id) {
+		return list.findOrAppend(new Var(id), null);
 	}
 
 	String id;
@@ -17,23 +18,13 @@ public class Var extends Term {
 	}
 
 	@Override
-	public Iterable<Term> subterms() {
-		return () -> new Iterator<Term>() {
-			@Override
-			public boolean hasNext() {
-				return false;
-			}
-
-			@Override
-			public Term next() {
-				return null;
-			}
-		};
+	public TermIterator argsIterator() {
+		return Term.EMPTY_SUBTERMS;
 	}
 
 	@Override
 	public boolean eq(Term t) {
-		// ignore subterms because there are none.
+		// ignore args because there are none.
 		return t instanceof Var && id.equals(((Var) t).id);
 	}
 
@@ -48,8 +39,13 @@ public class Var extends Term {
 		return true;
 	}
 
+	@Override
+	public Term copy(TermList list, List<Term> args) {
+		return Var.create(list, id);
+	}
+
 	/*@Override
-	public Term copy(List<Term> subterms) {
+	public Term copy(List<Term> args) {
 		return this;
 	}*/
 
@@ -58,15 +54,29 @@ public class Var extends Term {
 	}
 
 	@Override
-	void auxInitLevel(List<LambdaVar> lvs) {
+	public void auxInitLevel(List<LambdaVar> lvs) {
 		insertLevel = 0;
 		insertedClosed = true;
+		linkSet = false;
 	}
 
 
 	@Override
-	TermList.Node auxInsert(TermList list) {
-		// fixme maybe speed up?
-		return list.assertInList(this, null);
+	protected Term auxInsert(TermList list) {
+		return create(list, id);
 	}
+
+
+	/*@Override
+	protected Term auxShallowInsert(TermList list, Map<String, String> renaming) {
+		String newId;
+		if(renaming != null) {
+			newId = renaming.get(id);
+			if(newId == null) newId = id;
+		} else {
+			newId = id;
+		}
+
+		return create(list, newId);
+	}*/
 }
