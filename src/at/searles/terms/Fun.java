@@ -95,7 +95,6 @@ public class Fun extends Term {
 	public void auxInitLevel(List<LambdaVar> lvs) {
 		insertedClosed = true; // true if all args are insertedClosed
 		insertLevel = 0; // maximum of all args
-		linkSet = false; // is the link-field set in some subterm so that it would have to be modified?
 
 		for(int i = 0; i < args.length; ++i) {
 			Term arg = args[i];
@@ -103,7 +102,6 @@ public class Fun extends Term {
 
 			if(!arg.insertedClosed) insertedClosed = false;
 			if(arg.insertLevel > insertLevel) insertLevel = arg.insertLevel;
-			if(arg.linkSet) linkSet = true;
 		}
 	}
 

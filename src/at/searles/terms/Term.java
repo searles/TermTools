@@ -5,7 +5,7 @@ import java.util.*;
 public abstract class Term extends TermList.Node {
 
 	public Term link = null; // used for substitutions
-	public boolean normalform = false;
+	public boolean normalform = false; // if true, then it is guaranteed that no subterm has 'link' set.
 
 	public final int level; // lambda level
 	public final int maxLambdaIndex; // max lambda index in a subterm, -1 if no lambda variable below.
@@ -45,12 +45,6 @@ public abstract class Term extends TermList.Node {
 	protected int insertLevel = -1; // lambda level of the inserted term.
 
 	/**
-	 * This one is set in initLevel if in some subterm link is set. Allows a speedup when inserting into the same
-	 * termlist
-	 */
-	protected boolean linkSet = false;
-
-	/**
 	 * For terms without links, checking whether a term has some bound variables that is not yet bound
 	 * by a lambda can be done via a simple comparison of maxLambdaIndex and level (method closed()).
 	 * If there are links, there may be clashes, therefore I use 'insertedClosed' instead.
@@ -58,12 +52,12 @@ public abstract class Term extends TermList.Node {
 	 */
 	protected boolean insertedClosed = false;  // true if there are no unbound lambda variables.
 
-	protected int cycleMark = 0;
+	//protected int cycleMark = 0;
 
 	/**
 	 * Checks for a cycle involving link fields. If there is a cycle, true is returned.
 	 * @return
-     */
+     *
 	public boolean containsCycle() {
 		boolean ret = auxContainsCycle();
 		unmarkCycles();
@@ -109,7 +103,7 @@ public abstract class Term extends TermList.Node {
 				for(Term arg : args()) arg.unmarkCycles();
 			}
 		}
-	}
+	}*/
 
 	/**
 	 * This method prepares the insertion. It sets the insertLevel and insertedClosed-flag.
@@ -117,26 +111,25 @@ public abstract class Term extends TermList.Node {
 	 * @return
      */
 	void initLevel(List<LambdaVar> lvs) throws CycleException {
-		if(cycleMark == 1) {
+		if(insertLevel == -2) { // insert level of -2 indicates that we are stuck in a loop
 			throw new CycleException(this);
 		}
 
 		try {
 			if (insertLevel == -1) {
-				if (link != null) {
+				if(link != null) {
 					// here, recursion is used to find loops.
-					cycleMark = 1;
+					insertLevel = -2;
 					link.initLevel(lvs);
-					cycleMark = 0;
 
 					this.insertedClosed = link.insertedClosed;
 					this.insertLevel = link.insertLevel;
-					this.linkSet = true;
-				} else {
-					// fixme: no need to do sth with normalforms if parent is identical
-					cycleMark = 1;
+				} else if(!normalform) {
+					// no need to do sth with normalforms.
+					// normalforms are assumed to not have any link field set.
+					insertLevel = -2;
 					auxInitLevel(lvs);
-					cycleMark = 0;
+					assert insertLevel != -2;
 				}
 
 				// link == this marks a normalform
@@ -171,7 +164,7 @@ public abstract class Term extends TermList.Node {
 			// link is this can be used for normalizations
 			// resolve link.
 			return inserted = link.insertInto(list);
-		} else if(linkSet || list != parent) {
+		} else if(list != parent || !normalform) {
 			return inserted = this.auxInsert(list);
 		} else {
 			// in this case, this == link and parent == list.
@@ -189,14 +182,12 @@ public abstract class Term extends TermList.Node {
 			inserted = null;
 			insertLevel = -1;
 			insertedClosed = false;
-			linkSet = false;
-			cycleMark = 0;
 
 			if(link != null && link != this) {
 				link.uninsert();
 			} else {
-				for (Term subterm : args()) {
-					subterm.uninsert();
+				for (Term arg : args()) {
+					arg.uninsert();
 				}
 			}
 		}

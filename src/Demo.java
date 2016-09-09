@@ -209,7 +209,9 @@ public class Demo {
 		return s + ")";
 	}
 
+	/*
 	static void demoNormalize2() {
+	// fixme this is a really nice idea for rewriting
 		TermList l = new TermList();
 
 		Function<String, Boolean> isVar = s -> Character.isUpperCase(s.charAt(0));
@@ -249,7 +251,7 @@ public class Demo {
 		}
 
 		System.out.println("nf = " + t + ", " + l.size());
-	}
+	}*/
 
 	static void demoDagIteratorFO() {
 		TermList l = new TermList();
@@ -275,55 +277,48 @@ public class Demo {
 		System.out.println(pr.parse("+(a,b,*0)->^(B,HELLO,$$$)"));
 	}
 
-	static TRS trs = new TRS.TRSParser(new Lexer(), s -> true).parse(
-			"+(x,0) -> x " +
-					"+(x,s(y)) -> s(+(x,y)) " +
-					"-(s(x),s(y)) -> -(x,y) " +
-					"-(x,0) -> x " +
-					"*(x,0) -> 0 " +
-					"*(x,s(y)) -> +(x, *(x,y)) " +
-					"^(x,0) -> s(0) " +
-					"^(x,s(y)) -> *(x, ^(x, y)) " +
-					"/(x,y) -> ifdiv(x,y, -(y, x)) " +
-					"ifdiv(x, y, -(0, a)) -> s(/(a, y)) " +
-					"ifdiv(x, y, 0) -> 0 "
+	static final Function<String, Boolean> isVar = s -> Character.isUpperCase(s.charAt(0));
 
-				/*"/(x, s(y)) -> s(/(-(x, y), y)) " + // fixme hey, this is a funny way to implement division... is it conf?
-				"s(/(-(0, s(z)), y)) -> 0"*/
-	);
-
-
-	static void demoNormalize3() {
+	static void rewriteTRS(String strs, String term) {
+		TRS trs = new TRS.TRSParser(new Lexer(), s -> true).parse(strs);
 		TermList l = new TermList();
+		Term t = TermParserBuilder.FO_BUILDER.parser(l, s -> true).parse(term);
 
-		Function<String, Boolean> isVar = s -> Character.isUpperCase(s.charAt(0));
-		Term t = TermParserBuilder.FO_BUILDER.parser(l, isVar).parse(math("/", math("^", 5, 6), math("^", 5, 5)));
+		long time = System.currentTimeMillis();
 
-		Term u = TermFn.normalize(trs, t);
+		try {
+			Term nf = TermFn.normalize(trs, t);
+			System.out.println("normalform = " + nf);
+		} catch(Throwable th) {
+			th.printStackTrace();
+		}
 
-		System.out.println("nf = " + u + ", size = " + l.size());
+		long dur = System.currentTimeMillis() - time;
+
+		System.out.printf("Duration: %.3fs\n", dur / 1000.);
 	}
 
-	static void demoNormalize4NonTerm() {
-		// now for something non-terminating
-		TRS nontermtrs = new TRS.TRSParser(new Lexer(), s -> true).parse(
-				"+(x) -> +(+(x)) "
-				/*"/(x, s(y)) -> s(/(-(x, y), y)) " + // fixme hey, this is a funny way to implement division... is it conf?
-				"s(/(-(0, s(z)), y)) -> 0"*/
-		);
-
+	static void rewriteCTRS(String sctrs, String term) {
+		CTRS ctrs = new CTRS.CTRSParser(new Lexer(), s -> true).parse(sctrs);
 		TermList l = new TermList();
+		Term t = TermParserBuilder.FO_BUILDER.parser(l, s -> true).parse(term);
 
-		Term t = TermParserBuilder.FO_BUILDER.parser(l, isVar).parse(math("+", "0"));
+		long time = System.currentTimeMillis();
 
-		Term u = TermFn.normalize(nontermtrs, t);
+		try {
+			Term nf = TermFn.normalize(ctrs, t);
+			System.out.println("normalform = " + nf + ", size = " + l.size());
+		} catch(Throwable th) {
+			th.printStackTrace();
+		}
 
-		System.out.println("nf = " + u + ", size = " + l.size());
+		long dur = System.currentTimeMillis() - time;
+
+		System.out.printf("Duration: %.3fs\n", dur / 1000.);
 	}
 
 	static void demoNormalizeCTRS() {
-		CTRS ctrs = new CTRS.CTRSParser(new Lexer(), s -> true).parse(
-				"+(x,0) -> x " +
+		String ctrs =   "+(x,0) -> x " +
 						"+(x,s(y)) -> s(+(x,y)) " +
 						"-(s(x),s(y)) -> -(x,y) " +
 						"-(x,0) -> x " +
@@ -335,17 +330,11 @@ public class Demo {
 						"<(0, s(x)) -> true() " +
 						"<(x, 0) -> false() " +
 						"/(x,y) -> pair(0, x) <=  <(x,y) -> true() " +
-						"/(x,y) -> pair(s(q), r) <=  <(x,y) -> false(), /(-(x,y), y) -> pair(q,r) "
-		);
+						"/(x,y) -> pair(s(q), r) <=  <(x,y) -> false(), /(-(x,y), y) -> pair(q,r) ";
 
-		TermList l = new TermList();
+		String term = math("/", math("^", 5, 6), math("^", 5, 5));
 
-		Term t = TermParserBuilder.FO_BUILDER.parser(l, isVar).parse(math("/", math("^", 5, 6), math("^", 5, 5)));
-
-		Term u = TermFn.normalize(ctrs, t);
-
-		System.out.println("nf = " + u + ", size = " + l.size());
-
+		rewriteCTRS(ctrs, term);
 	}
 
 	static void demoNormalizeCTRSNonOpTerm1() {
@@ -379,22 +368,12 @@ public class Demo {
 		System.out.println("nf = " + u + ", size = " + l.size());
 	}
 
-	static final Function<String, Boolean> isVar = s -> Character.isUpperCase(s.charAt(0));
+
 
 	static void demoNormalizeTRSNonOpTerm3() {
-		TRS trs = new TRS.TRSParser(new Lexer(), isVar).parse(
-				"f(0) -> f(0) " +
+		rewriteTRS("f(0) -> f(0) " +
 				"f(1) -> 1 " +
-				"0 -> 1"
-		);
-
-		TermList l = new TermList();
-
-		Term t = TermParserBuilder.FO_BUILDER.parser(l, isVar).parse("f(0)");
-
-		Term u = TermFn.normalize(trs, t);
-
-		System.out.println("nf = " + u + ", size = " + l.size());
+				"0 -> 1", "f(0)");
 	}
 
 	static void demoIterator() {
@@ -423,12 +402,7 @@ public class Demo {
 
 
 	public static void main(String...ignore) {
-		long time = System.currentTimeMillis();
-
-		demoNormalizeTRSNonOpTerm3();
-
-		long dur = System.currentTimeMillis() - time;
-		System.out.printf("Duration: %.3fs\n", dur / 1000.);
+		demoNormalizeCTRS();
 	}
 }
 

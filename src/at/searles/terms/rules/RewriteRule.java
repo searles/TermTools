@@ -30,17 +30,6 @@ public class RewriteRule {
 		if(lhs.match(t)) {
 			Term reduct = target.insert(rhs);
 			lhs.unmatch();
-
-			if(loopCheck) {
-				t.link = reduct;
-				if(reduct.containsCycle()) {
-					t.link = null;
-					throw new CycleException(reduct);
-				} else {
-					t.link = null;
-				}
-			}
-
 			return reduct;
 		} else {
 			return null;

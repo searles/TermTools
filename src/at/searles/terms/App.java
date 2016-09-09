@@ -63,7 +63,6 @@ public class App extends Term {
 
 		insertLevel = Math.max(l.insertLevel, r.insertLevel);
 		insertedClosed = l.insertedClosed && r.insertedClosed;
-		linkSet = l.linkSet || r.linkSet;
 	}
 
 	@Override

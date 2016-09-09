@@ -59,7 +59,6 @@ public class LambdaVar extends Term {
 		lvs.add(this);
 		insertLevel = 0;
 		insertedClosed = false;
-		linkSet = false;
 	}
 
 	@Override

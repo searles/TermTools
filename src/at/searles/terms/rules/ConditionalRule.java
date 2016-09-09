@@ -39,7 +39,7 @@ public class ConditionalRule {
         }
     }
 
-    public Term apply(Term t, TermList target, TermFn fn, boolean loopCheck) {
+    public Term apply(Term t, TermList target, TermFn fn) {
         if(lhs.match(t)) {
             for (Condition c : conditions) {
                 Term ssigma = target.insert(c.s); // matched lhs of condition
@@ -47,16 +47,6 @@ public class ConditionalRule {
                 // store matcher
                 Map<Var, Term> matcher = list.matcher();
                 list.clearMatcher();
-
-                if(loopCheck) {
-                    t.link = ssigma;
-                    if(ssigma.containsCycle()) {
-                        t.link = null;
-                        throw new CycleException(ssigma);
-                    } else {
-                        t.link = null;
-                    }
-                }
 
                 Term u = TermFn.normalize(fn, ssigma);
 
@@ -66,7 +56,6 @@ public class ConditionalRule {
                 }
 
                 // and compare normalform of ssigma with c.t
-
                 if (!c.t.match(u)) {
                     // matcher was unset already
                     // but reset all variables
@@ -82,16 +71,6 @@ public class ConditionalRule {
             Term reduct = target.insert(rhs);
 
             list.clearMatcher();
-
-            if(loopCheck) {
-                t.link = reduct;
-                if(reduct.containsCycle()) {
-                    t.link = null;
-                    throw new CycleException(reduct);
-                } else {
-                    t.link = null;
-                }
-            }
 
             return reduct;
         } else {

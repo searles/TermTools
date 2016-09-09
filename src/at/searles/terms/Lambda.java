@@ -64,7 +64,6 @@ public class Lambda extends Term {
 		}
 
 		insertedClosed = lvs.isEmpty();
-		linkSet = t.linkSet;
 	}
 
 	@Override

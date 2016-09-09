@@ -63,7 +63,6 @@ public class Const<T> extends Term {
 	public void auxInitLevel(List<LambdaVar> lvs) {
 		insertLevel = 0;
 		insertedClosed = true;
-		linkSet = false;
 	}
 
 	@Override
