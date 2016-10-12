@@ -10,41 +10,6 @@ import java.util.function.Function;
 
 public class Demo {
 
-	static void test1() {
-		// interesting test whether two similar terms (same app involving only lambda terms)
-		// can be untangled.
-
-		TermList l = new TermList();
-
-		Parser<Term> p = TermParserBuilder.HO_BUILDER.parser(l, s -> true);
-
-		Term t1 = p.parse("\\x.(\\y.X (x y)) (\\z.(x z) Y)"); //
-
-		System.out.println(l);
-
-		Term t2 = p.parse("X");
-		Term t3 = p.parse("Y");
-		Term t4 = p.parse("\\x.S");
-		Term t5 = p.parse("\\x y.S");
-
-		System.out.println("t1 = " + t1);
-
-		t2.link = t4;
-		t3.link = t5;
-
-		TermList l2 = new TermList();
-
-		Term post = l2.insert(t1);
-
-		System.out.println("post = " + post);
-		System.out.println("l2 = " + l2);
-
-		Term postInline = l.insert(t1);
-
-		System.out.println("postInline = " + postInline);
-		System.out.println("l = " + l);
-
-	}
 
 	static void test2() {
 		TermList l1 = new TermList();
@@ -117,97 +82,8 @@ public class Demo {
 		}
 	}
 
-	static void demoNormalize1() {
-		TermList l = new TermList();
 
-		Function<String, Boolean> isVar = s -> Character.isUpperCase(s.charAt(0));
 
-		Term t = TermParserBuilder.HO_BUILDER.parser(l, isVar).parse("power (s(s(s 0))) (s(s(s 0)))");
-
-		TRS trs = new TRS.TRSParser(new Lexer(), isVar).parse(
-				"plus X 0 -> X;" +
-						"plus X (s Y) -> s (plus X Y);" +
-						"times X 0 -> 0;" +
-						"times X (s Y) -> plus (times X Y) X;" +
-						"power X 0 -> (s 0);" +
-						"power X (s Y) -> times (power X Y) X;"
-		);
-
-		Iterator<Term> i = l.iterator();
-
-		while(i.hasNext()) {
-			Term u = i.next();
-			// in u there might be some links set, therefore insert it.
-
-			// if 'link' is set in some subterm, then resolve it, otherwise rewrite it.
-			boolean isLinked = false;
-
-			for(Term v : u.dag()) {
-				if(v.link != null) {
-					isLinked = true;
-					break;
-				}
-			}
-
-			if(isLinked) {
-				u.link = l.insert(u);
-				// don't do anything with this term. It will be inserted in the
-				// termlist (or if it existed before we have rewritten it already).
-			} else {
-				Term reduct = trs.apply(u, l);
-				u.link = reduct;
-			}
-		}
-
-		while(t.link != null) {
-			t = t.link;
-		}
-
-		System.out.println("nf = " + t);
-	}
-
-	static void demoDagIterator() {
-		TermList l = new TermList();
-
-		Parser<Term> p = TermParserBuilder.HO_BUILDER.parser(l, s -> true);
-
-		Term t1 = p.parse("\\x.(\\y.X (x y)) (\\z.(x z) Y)"); //
-
-		for(Term t : t1.dag()) {
-			System.out.println(t);
-		}
-	}
-
-	static String num(int i) {
-		String s = "0";
-		while(i > 0) {
-			s = "s(" + s + ")";
-			i--;
-		}
-
-		return s;
-	}
-
-	static String math(String op, int...is) {
-		String[] arr = new String[is.length];
-
-		for(int i = 0; i < is.length; ++i) {
-			arr[i] = num(is[i]);
-		}
-
-		return math(op, arr);
-	}
-
-	static String math(String op, String...args) {
-		String s = op + "(";
-
-		for(int i = 0; i < args.length; ++i) {
-			if(i > 0) s += ", ";
-			s += args[i];
-		}
-
-		return s + ")";
-	}
 
 	/*
 	static void demoNormalize2() {
@@ -253,24 +129,6 @@ public class Demo {
 		System.out.println("nf = " + t + ", " + l.size());
 	}*/
 
-	static void demoDagIteratorFO() {
-		TermList l = new TermList();
-
-		Parser<Term> p = TermParserBuilder.FO_BUILDER.parser(l, s -> true);
-
-		Term t1 = p.parse("+(A,***,B, -> )"); //
-		Term t2 = p.parse("^(s(s(s(0))), s(s(s(0))))");
-
-		for(Term t : t1.dag()) {
-			System.out.println(t);
-		}
-
-		System.out.println(l);
-
-		System.out.println(t1);
-		System.out.println(t2);
-	}
-
 	static void demoRuleParser() {
 		Parser<RewriteRule> pr = new RewriteRule.RuleParser(new Lexer(), s -> true);
 
@@ -287,7 +145,7 @@ public class Demo {
 		long time = System.currentTimeMillis();
 
 		try {
-			Term nf = TermFn.normalize(trs, t);
+			Term nf = t.normalize(trs);
 			System.out.println("normalform = " + nf);
 		} catch(Throwable th) {
 			th.printStackTrace();
@@ -298,44 +156,7 @@ public class Demo {
 		System.out.printf("Duration: %.3fs\n", dur / 1000.);
 	}
 
-	static void rewriteCTRS(String sctrs, String term) {
-		CTRS ctrs = new CTRS.CTRSParser(new Lexer(), s -> true).parse(sctrs);
-		TermList l = new TermList();
-		Term t = TermParserBuilder.FO_BUILDER.parser(l, s -> true).parse(term);
 
-		long time = System.currentTimeMillis();
-
-		try {
-			Term nf = TermFn.normalize(ctrs, t);
-			System.out.println("normalform = " + nf + ", size = " + l.size());
-		} catch(Throwable th) {
-			th.printStackTrace();
-		}
-
-		long dur = System.currentTimeMillis() - time;
-
-		System.out.printf("Duration: %.3fs\n", dur / 1000.);
-	}
-
-	static void demoNormalizeCTRS() {
-		String ctrs =   "+(x,0) -> x " +
-						"+(x,s(y)) -> s(+(x,y)) " +
-						"-(s(x),s(y)) -> -(x,y) " +
-						"-(x,0) -> x " +
-						"*(x,0) -> 0 " +
-						"*(x,s(y)) -> +(x, *(x,y)) " +
-						"^(x,0) -> s(0) " +
-						"^(x,s(y)) -> *(x, ^(x, y)) " +
-						"<(s(x),s(y)) -> <(x, y) " +
-						"<(0, s(x)) -> true() " +
-						"<(x, 0) -> false() " +
-						"/(x,y) -> pair(0, x) <=  <(x,y) -> true() " +
-						"/(x,y) -> pair(s(q), r) <=  <(x,y) -> false(), /(-(x,y), y) -> pair(q,r) ";
-
-		String term = math("/", math("^", 5, 6), math("^", 5, 5));
-
-		rewriteCTRS(ctrs, term);
-	}
 
 	static void demoNormalizeCTRSNonOpTerm1() {
 		CTRS ctrs = new CTRS.CTRSParser(new Lexer(), s -> true).parse(
@@ -347,7 +168,7 @@ public class Demo {
 
 		Term t = TermParserBuilder.FO_BUILDER.parser(l, isVar).parse("f(f(0))");
 
-		Term u = TermFn.normalize(ctrs, t);
+		Term u = t.normalize(ctrs);
 
 		System.out.println("nf = " + u + ", size = " + l.size());
 
@@ -363,7 +184,7 @@ public class Demo {
 
 		Term t = TermParserBuilder.FO_BUILDER.parser(l, isVar).parse("f(s(s(0)))");
 
-		Term u = TermFn.normalize(ctrs, t);
+		Term u = t.normalize(ctrs);
 
 		System.out.println("nf = " + u + ", size = " + l.size());
 	}
@@ -376,33 +197,7 @@ public class Demo {
 				"0 -> 1", "f(0)");
 	}
 
-	static void demoIterator() {
-		TermList l = new TermList();
-
-		Function<String, Boolean> isVar = s -> Character.isUpperCase(s.charAt(0));
-		Term t = TermParserBuilder.FO_BUILDER.parser(l, isVar).parse("f(x, g(y))");
-
-		Term.TermIterator it = t.treeIterator();
-
-		Term u = TermParserBuilder.FO_BUILDER.parser(l, isVar).parse("H(1,I(2))");
-
-		Term v = null;
-
-		int i = 0;
-
-		while(it.hasNext()) {
-			i++;
-			System.out.println(it.next());
-			if(i == 2) v = it.replace(u);
-		}
-
-		System.out.println(v);
-		System.out.println(l);
-	}
-
-
 	public static void main(String...ignore) {
-		demoNormalizeCTRS();
 	}
 }
 

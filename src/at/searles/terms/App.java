@@ -17,44 +17,25 @@ public class App extends Term {
      * @return
      */
 	public static Term create(TermList list, Term l, Term r) {
+		// fixme move this one to termlist
+		if(l.parent != list || r.parent != list) throw new IllegalArgumentException();
 		// l and r must be in list!
 		return list.findOrAppend(new App(l, r),
 				l.index > r.index ? l : r);
 	}
 
-	Term l;
-	Term r;
+	private final Term l;
+	private final Term r;
 
-	App(Term l, Term r) {
+	public App(Term l, Term r) {
 		super(Math.max(l.level, r.level), Math.max(l.maxLambdaIndex, r.maxLambdaIndex));
+
+		if(l.parent != r.parent) throw new IllegalArgumentException();
+
 		this.l = l;
 		this.r = r;
 	}
 
-	@Override
-	public TermIterator argsIterator() {
-		return new TermIterator() {
-			int i = -1;
-
-			@Override
-			public boolean hasNext() {
-				return i < 1;
-			}
-
-			@Override
-			public Term next() {
-				i++;
-				return i == 0 ? l : r;
-			}
-
-			@Override
-			public Term replace(Term u) {
-				if(u.parent != parent) throw new IllegalArgumentException();
-
-				return App.create(parent, i == 0 ? u : l, i == 1 ? u : r);
-			}
-		};
-	}
 
 	@Override
 	public void auxInitLevel(List<LambdaVar> lvs) {
@@ -73,10 +54,21 @@ public class App extends Term {
 		return App.create(list, ln, rn);
 	}
 
-	/*@Override
-	Term auxShallowInsert(TermList target, Map<String, String> renaming) {
-		return create(target, l.shallowInsertInto(target, renaming), r.shallowInsertInto(target, renaming));
-	}*/
+	@Override
+	public int arity() {
+		return 2;
+	}
+
+	@Override
+	public Term arg(int p) {
+		return p == 0 ? l : r;
+	}
+
+	@Override
+	public Term replace(int p, Term t) {
+		// FIXME this one does not work if there is a lambda term parallel to it!
+		return create(parent, p == 0 ? t : l, p == 1 ? t : r);
+	}
 
 	@Override
 	public boolean eq(Term t) {
@@ -124,7 +116,19 @@ public class App extends Term {
 
 	@Override
 	public Term copy(TermList list, List<Term> args) {
-		return App.create(list, args.get(0), args.get(1));
+		// I might have to update lambda indices.
+		Term copy_l = args.get(0);
+		Term copy_r = args.get(1);
+
+		int copy_level = Math.max(copy_l.level, copy_r.level);
+
+		/*if(copy_level != level) {
+			// yup, I have to update the lambda indices in variables.
+			copy_l = copy_l.updateLambda(copy_level - copy_l.level);
+			copy_r = copy_r.updateLambda(copy_level - copy_r.level);
+		}*/
+
+		return App.create(list, copy_l, copy_r);
 	}
 
 	protected String str() {
@@ -135,7 +139,7 @@ public class App extends Term {
 			sl = "(" + sl + ")";
 		}
 
-		if(r instanceof App) {
+		if(r instanceof App || r instanceof Lambda) {
 			sr = "(" + r + ")";
 		}
 		return sl + " " + sr;

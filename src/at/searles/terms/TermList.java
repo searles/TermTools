@@ -7,7 +7,7 @@ import java.util.*;
  * provides the insert-method that ensures that a term is always stored as a DAG with maximum
  * sharing. This property is essential for some algorithms in Term.
  */
-public class TermList implements Iterable<Term> {
+public class TermList /*implements Iterable<Term>*/ {
 
     // this comparator makes args smaller than superterms.
     public static final Comparator<? super Term> CMP = (a, b) -> {
@@ -18,8 +18,17 @@ public class TermList implements Iterable<Term> {
 
     private Term head = null;
 
+    public TermList() {}
+
+    TermList(Term head) {
+        // this one is here just for testing...
+        this.head = head;
+        this.head.parent = this;
+    }
+
     /**
      * Insert a term in which link is possibly set. This might require a relabeling of lambda variables.
+     * If link is not set and the subterms are already inserted, it is better to use Term.copy instead.
      * @param t
      * @return
      */
@@ -34,10 +43,9 @@ public class TermList implements Iterable<Term> {
         return ret;
     }
 
-
     /**
      * Makes sure that t is inside this termlist. Since the algorithm of 'insert' inserts
-     * the args first, the args in t must be identical to the ones of the found termms.
+     * the args first, the args in t must be identical to the ones of the found terms.
      * @param t t is a new term. Copies are not allowed because they are already in the list.
      * @param max Calling methods can determine a node of a subterm to speed up this method. If null, then searching
      *            will start from head.
@@ -70,7 +78,7 @@ public class TermList implements Iterable<Term> {
         }
     }
 
-    @Override
+    /*@Override
     public Iterator<Term> iterator() {
         // The iterator is a bit tricky. I want to allow for live-updates, thus the last returned node is stored
         // (null in the beginning)
@@ -89,18 +97,19 @@ public class TermList implements Iterable<Term> {
                 return ptr;
             }
         };
-    }
+    }*/
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
 
-        Iterator<Term> it = iterator();
+        Term t = head;
 
-        if(it.hasNext()) {
-            sb.append(it.next());
-            while(it.hasNext()) {
-                sb.append(" :: ").append(it.next());
+        if(t != null) {
+            sb.append(t);
+
+            for(t = t.next; t != null; t = t.next) {
+                sb.append(" :: ").append(t);
             }
         }
 
@@ -120,7 +129,7 @@ public class TermList implements Iterable<Term> {
     public Map<Var, Term> matcher() {
         Map<Var, Term> map = new TreeMap<>((v1, v2) -> v1.id.compareTo(v2.id));
 
-        for(Term t : this) {
+        for(Term t = head; t != null; t = t.next) {
             if(t instanceof Var && t.link != null) {
                 map.put((Var) t, t.link);
             }
@@ -133,7 +142,7 @@ public class TermList implements Iterable<Term> {
      * Clears all links in this termlist.
      */
     public void clearMatcher() {
-        for(Term t : this) {
+        for(Term t = head; t != null; t = t.next) {
             t.link = null;
         }
     }
@@ -161,7 +170,7 @@ public class TermList implements Iterable<Term> {
     /**
      * Node in a term list. default visibility so that Term can access this class (required for the is-field).
      */
-    public static class Node {
+    public static class Node implements Comparable<Node> {
         // this could be easily merged with Term but I think keeping them separated is better because
         // of modularity.
 
@@ -170,12 +179,19 @@ public class TermList implements Iterable<Term> {
 
         public TermList parent = null;
 
-        void append(Term nextOne) {
+        Node append(Term nextOne) {
             if(next != null) throw new IllegalArgumentException();
             if(nextOne.index != -1) throw new IllegalArgumentException();
             nextOne.index = index + 1;
             this.next = nextOne;
             nextOne.parent = parent;
+            return nextOne;
+        }
+
+        @Override
+        public int compareTo(Node other) {
+            if(parent != other.parent) throw new IllegalArgumentException("compared nodes must be in same termlist");
+            return Integer.compare(this.index, other.index);
         }
     }
 

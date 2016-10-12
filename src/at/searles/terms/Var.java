@@ -18,11 +18,6 @@ public class Var extends Term {
 	}
 
 	@Override
-	public TermIterator argsIterator() {
-		return Term.EMPTY_SUBTERMS;
-	}
-
-	@Override
 	public boolean eq(Term t) {
 		// ignore args because there are none.
 		return t instanceof Var && id.equals(((Var) t).id);
@@ -63,6 +58,21 @@ public class Var extends Term {
 	@Override
 	protected Term auxInsert(TermList list) {
 		return create(list, id);
+	}
+
+	@Override
+	public int arity() {
+		return 0;
+	}
+
+	@Override
+	public Term arg(int p) {
+		return null;
+	}
+
+	@Override
+	public Term replace(int p, Term t) {
+		return null;
 	}
 
 

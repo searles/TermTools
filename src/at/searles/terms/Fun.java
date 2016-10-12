@@ -1,9 +1,6 @@
 package at.searles.terms;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class Fun extends Term {
 
@@ -62,36 +59,6 @@ public class Fun extends Term {
 	}
 
 	@Override
-	public TermIterator argsIterator() {
-		return new TermIterator() {
-			int pos = -1;
-
-			@Override
-			public boolean hasNext() {
-				return pos < args.length - 1;
-			}
-
-			@Override
-			public Term next() {
-				pos++;
-				return args[pos];
-			}
-
-			@Override
-			public Term replace(Term u) {
-				if(parent != u.parent) throw new IllegalArgumentException();
-
-				Term[] newArgs = new Term[args.length];
-				for(int i = 0; i < args.length; ++i) {
-					newArgs[i] = i == pos ? u : args[i];
-				}
-
-				return Fun.createUnsafe(u.parent, f, newArgs);
-			}
-		};
-	}
-
-	@Override
 	public void auxInitLevel(List<LambdaVar> lvs) {
 		insertedClosed = true; // true if all args are insertedClosed
 		insertLevel = 0; // maximum of all args
@@ -116,16 +83,27 @@ public class Fun extends Term {
 		return Fun.createUnsafe(list, f, nArgs);
 	}
 
-	/*@Override
-	Term auxShallowInsert(TermList target, Map<String, String> renaming) {
-		Term[] nArgs = new Term[args.length];
+	@Override
+	public int arity() {
+		return args.length;
+	}
 
-		for(int i = 0; i < args.length; ++i) {
-			nArgs[i] = args[i].shallowInsertInto(target, renaming);
+	@Override
+	public Term arg(int p) {
+		return args[p];
+	}
+
+	@Override
+	public Term replace(int p, Term t) {
+		Term[] newArgs = new Term[arity()];
+
+		for(int i = 0; i < arity(); ++i) {
+			newArgs[i] = i == p ? t : args[i];
 		}
 
-		return Fun.createUnsafe(target, f, nArgs);
-	}*/
+		return createUnsafe(parent, f, newArgs);
+	}
+
 
 	@Override
 	public boolean eq(Term t) {
@@ -196,24 +174,6 @@ public class Fun extends Term {
 		}
 	}
 
-	/*@Override
-	public Term copy(List<Term> args) {
-		// check for identity while we're at it.
-		boolean eq = true;
-
-		Iterator<Term> si = args().iterator();
-		Iterator<Term> ti = args.iterator();
-
-		while(si.hasNext()) {
-			if(si.next() != ti.next()) {
-				eq = false;
-				break;
-			}
-		}
-
-		return eq ? this : new Fun(f, args);
-	}*/
-
 	protected String str() {
 		if(args.length == 0) {
 			return f + "()";
@@ -230,6 +190,27 @@ public class Fun extends Term {
 
 	@Override
 	public Term copy(TermList list, List<Term> args) {
+		// this one should use an arraylist.
+		int copy_level = 0;
+
+		for(Term arg : args) {
+			if(copy_level < arg.level) copy_level = arg.level;
+		}
+
+		// first, check whether it has to update this one.
+		int d = copy_level - this.level;
+
+		if(d != 0) {
+			// yes, I must update some lambdas.
+			ListIterator<Term> l = args.listIterator();
+
+			while(l.hasNext()) {
+				Term copy_arg = l.next();
+
+				l.set(copy_arg.updateLambda(d));
+			}
+		}
+
 		return Fun.create(list, this.f, args);
 	}
 }

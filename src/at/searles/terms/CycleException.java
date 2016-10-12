@@ -10,8 +10,9 @@ public class CycleException extends RuntimeException {
         this.cycle.add(t);
     }
 
-    public void append(Term t) {
+    public CycleException append(Term t) {
         this.cycle.add(t);
+        return this;
     }
 
     public String toString() {

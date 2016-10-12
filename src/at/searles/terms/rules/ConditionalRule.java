@@ -48,7 +48,7 @@ public class ConditionalRule {
                 Map<Var, Term> matcher = list.matcher();
                 list.clearMatcher();
 
-                Term u = TermFn.normalize(fn, ssigma);
+                Term u = ssigma.normalize(fn);
 
                 // restore matcher
                 for (Map.Entry<Var, Term> entry : matcher.entrySet()) {

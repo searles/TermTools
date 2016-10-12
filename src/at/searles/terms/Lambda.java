@@ -1,9 +1,6 @@
 package at.searles.terms;
 
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
+import java.util.*;
 
 public class Lambda extends Term {
 
@@ -24,28 +21,68 @@ public class Lambda extends Term {
 		this.lv = lv;
 	}
 
-	@Override
-	public TermIterator argsIterator() {
-		return new TermIterator() {
-			boolean hasNext = true;
+	/**
+	 * Method for beta reduction
+	 * @param u Term to be inserted for lambda variable
+	 * @return
+	 */
+	public Term beta2(Term u) {
+		// use innermost-dag.
+		// fixme I could rather use a 'replaceSubterm'-method?
 
-			@Override
-			public boolean hasNext() {
-				return hasNext;
-			}
+		// I need to replace the lambda variable with index "level - 1"
 
-			@Override
-			public Term next() {
-				hasNext = false;
-				return t;
-			}
+		return t.innermostOnDag(
+				(t, i) -> t.arg(i).maxLambdaIndex >= level - 1, // no need to change this one.
+				(t, args) -> {
+					for(int i = 0; i < args.size(); ++i) {
+						if(args.get(i) == null) args.set(i, t.arg(i));
+						// fill in the blanks.
+					}
 
-			@Override
-			public Term replace(Term u) {
-				if(u.parent != parent) throw new IllegalArgumentException();
-				return create(parent, u);
-			}
-		};
+					if(t == lv) {
+						return u;
+					} else {
+						return t.copy(parent, args);
+					}
+				}
+		);
+	}
+
+	/**
+	 * Method for beta reduction
+	 * @param u Term to be inserted for lambda variable
+	 * @return
+	 */
+	public Term beta(Term u) {
+		lv.link = u;
+
+		Term ret = parent.insert(t);
+
+		lv.link = null;
+		return ret;
+
+		/*
+		// use innermost-dag.
+		// fixme I could rather use a 'replaceSubterm'-method?
+
+		// I need to replace the lambda variable with index "level - 1"
+
+		return t.innermostOnDag(
+				(t, i) -> t.arg(i).maxLambdaIndex >= level - 1, // no need to change this one.
+				(t, args) -> {
+					for(int i = 0; i < args.size(); ++i) {
+						if(args.get(i) == null) args.set(i, t.arg(i));
+						// fill in the blanks.
+					}
+
+					if(t == lv) {
+						return u;
+					} else {
+						return t.copy(parent, args);
+					}
+				}
+		);*/
 	}
 
 	@Override
@@ -69,10 +106,25 @@ public class Lambda extends Term {
 	@Override
 	protected Term auxInsert(TermList list) {
 		lv.insertIndices.push(insertLevel - 1);
-		Term ret = Lambda.create(list, t.insertInto(list));
+		Term ret = copy(list, Arrays.asList(t.insertInto(list)));
 		lv.insertIndices.pop();
 
 		return ret;
+	}
+
+	@Override
+	public int arity() {
+		return 1;
+	}
+
+	@Override
+	public Term arg(int p) {
+		return this.t;
+	}
+
+	@Override
+	public Term replace(int p, Term t) {
+		return create(this.parent, t);
 	}
 
 	/*@Override
@@ -126,11 +178,21 @@ public class Lambda extends Term {
 
 	@Override
 	public Term copy(TermList list, List<Term> args) {
-		return Lambda.create(list, args.get(0));
+		Term copy_t = args.get(0);
+
+		/*if(t.level != copy_t.level) {
+			// in this case, modify
+			// this one is important for eg \1.(\0.%0) %1
+
+			copy_t = copy_t.replaceLambda(t.level, copy_t.level);
+		}*/
+
+		return Lambda.create(list, copy_t);
 	}
 
 	protected String str() {
 		// debruijn index is by 1 too high (which is better for some algorithms!)
 		return "\\" + (level - 1) + "." + t;
 	}
+
 }

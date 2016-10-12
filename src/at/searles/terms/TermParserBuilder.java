@@ -4,10 +4,7 @@ import at.searles.parsing.parser.Buffer;
 import at.searles.parsing.parser.Parser;
 import at.searles.parsing.regex.Lexer;
 
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.function.Function;
 
 /**
@@ -27,9 +24,12 @@ public interface TermParserBuilder {
 		public final Parser<String> openpar;
 		public final Parser<String> closepar;
 		public final Parser<String> dot;
+		public final Parser<String> comma;
 		public final Parser<String> backslash;
 		public final Parser<String> id;
 		public final Parser<String> num;
+		public final Parser<String> openarg;
+		public final Parser<String> closearg;
 
 		/**
 		 * Creates a new TermParserBuilder. Another lexer can be passed as an argument.
@@ -42,7 +42,10 @@ public interface TermParserBuilder {
 			l.addIgnore(" ");
 			openpar = l.tok("\\(");
 			closepar = l.tok("\\)");
+			openarg = l.tok("\\[");
+			closearg = l.tok("\\]");
 			dot = l.tok("\\.");
+			comma = l.tok("\\,");
 			backslash = l.tok("\\\\");
 			id = l.match("[A-Za-z_][0-9A-Za-z_]*");
 			num = l.match("[0-9]+");
@@ -74,7 +77,24 @@ public interface TermParserBuilder {
 				// Now for the parsers
 				Parser<Term> integer = num.map(i -> Const.create(list, i));
 
-				Parser<Term> var = id.map(s -> isVar.apply(s) ? Var.create(list, s) : Const.create(list, s));
+				Parser<Term> var = id.then(openarg.thenRight(
+						// comma separated list
+						expr.then(comma.thenRight(expr).rep(true)).opt().thenLeft(closearg)).opt())
+						.map(s -> {
+							if(!s.b.isDef) {
+								// if there is no [..] following it
+								return isVar.apply(s.a) ? Var.create(list, s.a) : Const.create(list, s.a);
+							} else {
+								// otherwise it is a fun.
+								List<Term> args = new ArrayList<Term>();
+								if(s.b.get().isDef) {
+									args.add(s.b.get().get().a);
+									args.addAll(s.b.get().get().b.asList());
+								}
+
+								return Fun.create(list, s.a, args);
+							}
+						});
 
 				/**
 				 * lambda = '\' id+ '.' expr

@@ -19,11 +19,6 @@ public class LambdaVar extends Term {
 	}
 
 	@Override
-	public TermIterator argsIterator() {
-		return Term.EMPTY_SUBTERMS;
-	}
-
-	@Override
 	public boolean eq(Term t) {
 		return t instanceof LambdaVar && this.index == ((LambdaVar) t).index;
 	}
@@ -66,6 +61,21 @@ public class LambdaVar extends Term {
 		// avoid creating too many objects.
 		int newIndex = insertIndices.isEmpty() ? index : insertIndices.peek();
 		return list.findOrAppend(newIndex == index ? this : new LambdaVar(newIndex), null);
+	}
+
+	@Override
+	public int arity() {
+		return 0;
+	}
+
+	@Override
+	public Term arg(int p) {
+		return null;
+	}
+
+	@Override
+	public Term replace(int p, Term t) {
+		return null;
 	}
 
 	/*@Override
