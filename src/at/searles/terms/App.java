@@ -1,8 +1,6 @@
 package at.searles.terms;
 
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class App extends Term {
 
@@ -28,30 +26,10 @@ public class App extends Term {
 	private final Term r;
 
 	public App(Term l, Term r) {
-		super(Math.max(l.level, r.level), Math.max(l.maxLambdaIndex, r.maxLambdaIndex));
-
 		if(l.parent != r.parent) throw new IllegalArgumentException();
 
 		this.l = l;
 		this.r = r;
-	}
-
-
-	@Override
-	public void auxInitLevel(List<LambdaVar> lvs) {
-		l.initLevel(lvs);
-		r.initLevel(lvs);
-
-		insertLevel = Math.max(l.insertLevel, r.insertLevel);
-		insertedClosed = l.insertedClosed && r.insertedClosed;
-	}
-
-	@Override
-	protected Term auxInsert(TermList list) {
-		Term ln = l.insertInto(list);
-		Term rn = r.insertInto(list);
-
-		return App.create(list, ln, rn);
 	}
 
 	@Override
@@ -116,31 +94,22 @@ public class App extends Term {
 
 	@Override
 	public Term copy(TermList list, List<Term> args) {
-		// I might have to update lambda indices.
 		Term copy_l = args.get(0);
 		Term copy_r = args.get(1);
-
-		int copy_level = Math.max(copy_l.level, copy_r.level);
-
-		/*if(copy_level != level) {
-			// yup, I have to update the lambda indices in variables.
-			copy_l = copy_l.updateLambda(copy_level - copy_l.level);
-			copy_r = copy_r.updateLambda(copy_level - copy_r.level);
-		}*/
 
 		return App.create(list, copy_l, copy_r);
 	}
 
-	protected String str() {
-		String sl = l.toString();
-		String sr = r.toString();
+	protected String str(LinkedList<String> vars) {
+		String sl = l.str(vars);
+		String sr = r.str(vars);
 
 		if(l instanceof Lambda) {
 			sl = "(" + sl + ")";
 		}
 
 		if(r instanceof App || r instanceof Lambda) {
-			sr = "(" + r + ")";
+			sr = "(" + sr + ")";
 		}
 		return sl + " " + sr;
 	}

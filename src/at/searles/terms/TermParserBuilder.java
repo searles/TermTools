@@ -1,7 +1,9 @@
 package at.searles.terms;
 
 import at.searles.parsing.parser.Buffer;
+import at.searles.parsing.parser.Concat;
 import at.searles.parsing.parser.Parser;
+import at.searles.parsing.parser.Rep;
 import at.searles.parsing.regex.Lexer;
 
 import java.util.*;
@@ -61,8 +63,9 @@ public interface TermParserBuilder {
 		public class TermParser extends Parser<Term> {
 
 			final TermList list;
-			public final Parser.PostInit<Term> expr;
+			final Parser.PostInit<Term> expr;
 			final Function<String, Boolean> isVar;
+			final LinkedList<String> lambdaVars = new LinkedList<>();
 
 			/**
 			 * Constructor. It initializes a bunch of parsers
@@ -83,7 +86,15 @@ public interface TermParserBuilder {
 						.map(s -> {
 							if(!s.b.isDef) {
 								// if there is no [..] following it
-								return isVar.apply(s.a) ? Var.create(list, s.a) : Const.create(list, s.a);
+								int lambdaIndex = lambdaVars.indexOf(s.a);
+
+								if(lambdaIndex != -1) {
+									return LambdaVar.create(list, lambdaIndex, list);
+								} else if(isVar.apply(s.a)) {
+									return Var.create(list, s.a);
+								} else {
+									return Const.create(list, s.a);
+								}
 							} else {
 								// otherwise it is a fun.
 								List<Term> args = new ArrayList<Term>();
@@ -105,22 +116,20 @@ public interface TermParserBuilder {
 				 * so that the correct debruijn index is used. They are removed from
 				 * bindings in the end.
 				 */
-				Parser<Term> lambda = backslash.thenRight(id.rep(false)).thenLeft(dot).then(expr).map((concat -> {
-					Term n = concat.b;
-
-					Iterator<String> it = concat.a.revIterator();
-
-					// set links in bound variables
-					while(it.hasNext()) {
-						Term v = Var.create(list, it.next());
-
-						v.link = LambdaVar.create(list, n.level);
-						n = Lambda.create(list, list.insert(n));
-						v.link = null;
-					}
-
-					return n;
-				}));
+				Parser<Term> lambda = backslash.thenRight(id.rep(false)).thenLeft(dot)
+						.map((vars) -> {
+							for(String v : vars) lambdaVars.addFirst(v);
+							return vars.size();
+						}).then(expr).map(
+								(concat) -> {
+									Term t = concat.b;
+									for(int i = 0; i < concat.a; ++i) {
+										lambdaVars.removeFirst();
+										t = Lambda.create(list, t);
+									}
+									return t;
+								}
+						);
 
 				/**
 				 * term = integer | real | var | '(' expr ')' | lambda
@@ -136,7 +145,6 @@ public interface TermParserBuilder {
 				 */
 				Parser<Term> apps = term.rep(false).map((nodes) -> {
 					Term t = null;
-
 					for (Term n : nodes) {
 						t = t == null ? n : App.create(list, t, n);
 					}

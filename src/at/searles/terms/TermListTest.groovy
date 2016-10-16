@@ -23,24 +23,86 @@ class TermListTest extends GroovyTestCase {
         return p.parse(s);
     }
 
-    void testUpdateLambda() {
-        // test shows that lambda variables are correctly updated, also in copy of app.
-        // This test does not use the parser because the parser in fact uses copy.
-        LambdaVar v0 = new LambdaVar(0); TermList l = new TermList(v0);
-        LambdaVar v1 = new LambdaVar(1); v0.append(v1);
-        LambdaVar v2 = new LambdaVar(2); v1.append(v2);
-        App app = new App(v0, v1); v2.append(app); // %0 %1
-        App app2 = new App(app, v2); app.append(app2);  // %0 %1 %2
+    void testBeta0() {
+        // normal beta reduction
+        Term test1 = ho("(\\x.x 0) (\\y.y)", null);
+        Term r = betaFn.apply(test1, test1.parent);
 
-        Lambda lam = new Lambda(app2, v0); app2.append(lam); // \0.%0 %1 %2
-        Lambda lam2 = new Lambda(lam, v1); lam.append(lam2); // \1.\0.%0 %1 %2
-        Lambda lam3 = new Lambda(lam2, v2); lam2.append(lam3); // \2.\1.\0.%0 %1 %2
+        assert r.toString().equals("(\\a.a) 0");
 
-        assert lam.updateLambda(10).toString().equals("\\0.%0 %11 %12");
-        assert lam2.updateLambda(10).toString().equals("\\1.\\0.%0 %1 %12");
-        assert lam3.updateLambda(10).toString().equals("\\2.\\1.\\0.%0 %1 %2");
+        r = test1.normalize(betaFn);
+        assert r.toString().equals("0");
+    }
 
-        assert app.copy(l, Arrays.asList(lam3, v1)).toString().equals("(\\2.\\1.\\0.%0 %1 %2) %4");
+    void testBeta1() {
+        // testing whether inserting a lambda variable in a beta reduction causes troubles.
+        Term t = ho("\\a.(\\b.(b a)) A", null); // the 0 is inside
+
+        Term u = t.normalize(betaFn);
+
+        assert u.toString().equals("\\a.A a");
+    }
+
+    void testBeta2() {
+        Term t = ho("\\a.B ((\\b.b) a)", null);
+        Term r = t.normalize(betaFn);
+        assert r.toString().equals("\\a.B a");
+    }
+
+    void testBetaArithmetics() {
+        // and some arithmetics
+        TermList l = new TermList();
+
+        Term n0 = ho("\\f.\\x.x", l);
+        Term succ = ho("\\n.\\f.\\x.f (n f x)", l);
+
+        Term r = App.create(l, succ, n0);
+        r = r.normalize(betaFn);
+
+        assert r.toString().equals("\\a.\\b.a b");
+
+        Term t2 = ho("\\f.\\x.f ((\\f.\\x.x) f x)", new TermList());
+
+        t2 = t2.normalize(betaFn);
+
+        assert t2.toString().equals("\\a.\\b.a b");
+
+        System.out.println(t2);
+
+        assert r.toString().equals("\\a.\\b.a b");
+
+        Term n2 = ho("\\f.\\x.f (f x)", l);
+        Term n3 = ho("\\f.\\x.f (f (f x))", l);
+        Term n4 = ho("\\f.\\x.f (f (f (f x)))", l);
+
+        Term n7 = ho("\\f.\\x.f (f (f (f (f (f (f x))))))", l);
+
+        Term plus = ho("\\m.\\n.\\f.\\x.m f (n f x)", l);
+        Term add34 = App.create(l, App.create(l, plus, n3), n4).normalize(betaFn);
+
+        assert n7 == add34;
+
+        System.out.println(n7);
+
+        Term mul = ho("\\m.\\n.\\f.m (n f)", l);
+        Term mul37 = App.create(l, App.create(l, mul, n3), n7);
+
+        Term n21 = mul37.normalize(betaFn);
+
+        Term mul21_4 = App.create(l, App.create(l, mul, n21), n4);
+
+        Term n84 = mul21_4.normalize(betaFn);
+
+        Term pow = ho("\\b.\\e.e b", l);
+        Term pow34 = App.create(l, App.create(l, pow, n3), n4);
+
+        Term n81 = pow34.normalize(betaFn);
+
+        Term add_81_3 = App.create(l, App.create(l, plus, n81), n3);
+
+        Term n84_2 = add_81_3.normalize(betaFn);
+
+        assert n84 == n84_2;
     }
 
     void testUpdateLambda3() {
@@ -57,7 +119,7 @@ class TermListTest extends GroovyTestCase {
 
         Term post = t1.innermostOnDag(new Term.FilterFn() {
             @Override
-            Boolean apply(Term t, Integer i) {
+            boolean apply(Term t, int i) {
                 return true;
             }
         }, new Term.PostOp<Term>() {
@@ -72,7 +134,7 @@ class TermListTest extends GroovyTestCase {
         System.out.println(t1);
         System.out.println(post);
 
-        assert post.toString().equals("\\2.(\\1.\\0.S) %2 %2");
+        assert post.toString().equals("\\a.(\\b.\\c.S) a a");
     }
 
     void testUpdateLambda2() {
@@ -80,6 +142,8 @@ class TermListTest extends GroovyTestCase {
         // it is equivalent to testInsert, only instead of link it uses copy.
         TermList l = new TermList();
         Term t1 = ho("\\x.(\\y.X (x y)) (\\z.(x z) Y)", l);
+
+        System.out.println(t1);
 
         // Problem: This one fails and it does so for a good reason:
         // If copy is applied on a subterm and on a superterm, the
@@ -98,7 +162,7 @@ class TermListTest extends GroovyTestCase {
 
         Term post = t1.innermostOnDag(new Term.FilterFn() {
             @Override
-            Boolean apply(Term t, Integer i) {
+            boolean apply(Term t, int i) {
                 return true;
             }
         }, new Term.PostOp<Term>() {
@@ -115,7 +179,7 @@ class TermListTest extends GroovyTestCase {
         Term u = ho("\\x.(\\y.(\\z.S) (x y)) (\\z.(x z) (\\z.\\w.S))", l); // expected result
 
         assert u == post;
-        assert u.toString().equals("\\3.(\\1.(\\0.S) (%3 %1)) (\\2.%3 %2 (\\1.\\0.S))");
+        assert u.toString().equals("\\a.(\\b.(\\c.S) (a b)) (\\b.a b (\\c.\\d.S))");
     }
 
     void testInsert() {
@@ -140,7 +204,7 @@ class TermListTest extends GroovyTestCase {
         Term u = ho("\\x.(\\y.(\\z.S) (x y)) (\\z.(x z) (\\z.\\w.S))", l2); // expected result
 
         assert u == post;
-        assert u.toString().equals("\\3.(\\1.(\\0.S) (%3 %1)) (\\2.%3 %2 (\\1.\\0.S))");
+        assert u.toString().equals("\\3.(\\1.(\\0.S) (v3 v1)) (\\2.v3 v2 (\\1.\\0.S))");
     }
 
     void testInsert2() {
@@ -153,23 +217,42 @@ class TermListTest extends GroovyTestCase {
 
         Term lfx = ho("\\x.F x", l1);
         Term f = ho("F", l1);
-        Term l0_1 = LambdaVar.create(l1, 0);
+        Term l0_1 = LambdaVar.create(l1, 0, l1);
 
         Term lgx = ho("\\x.G x", l2);
         Term g = ho("G", l2);
-        Term l0_2 = LambdaVar.create(l2, 0);
+        Term l0_2 = LambdaVar.create(l2, 0, l2);
 
         f.link = lgx; // F -> \\x.G x
         g.link = l0_1; // G -> lambda var in l1
 
         Term t1 = l1.insert(lfx);
 
-        assert t1.toString().equals("\\1.(\\0.%1 %0) %1");
+        assert t1.toString().equals("\\1.(\\0.v1 v0) v1");
 
         g.link = l0_2;  // G -> lambda var in l1
         Term t2 = l1.insert(lfx);
 
-        assert t1.toString().equals("\\1.(\\0.%0 %0) %1");
+        assert t2.toString().equals("\\1.(\\0.v0 v0) v1");
+    }
+
+    void testUpdateLambdaReduced() {
+        // this is a thing in beta reductions:
+        // \1.(\0.X) v1 and the first thing is replaced by some A, then the second argument, v1, must become v0.
+        Term t = ho("\\x.(\\y.X) x", null);
+        Term u = t.arg(0).arg(0);
+
+        Term x = t.arg(0).arg(0).arg(0);
+        Term v1 = t.arg(0).arg(1);
+
+        // u.link = x;
+        // t = t.parent.insert(t);
+
+        Term v = t.arg(0).copy(t.parent, Arrays.asList(x, v1));
+
+        // This one must update the second argument because the level is reduced.
+
+        System.out.println(v);
     }
 
     static String num(int i) {
@@ -216,7 +299,7 @@ class TermListTest extends GroovyTestCase {
             return nf;
         } finally {
             double dur = System.currentTimeMillis() - time;
-            System.out.printf("Duration: %.3fs\n", dur / 1000.0);
+            System.out.printf("Duration: v.3fs\n", dur / 1000.0);
         }
     }
 
@@ -260,15 +343,39 @@ class TermListTest extends GroovyTestCase {
         TermList l = new TermList();
         Term t = ho("\\x.B (\\y.y)", l);
         Term lam = ho("\\y.y", l);
-        Term lv = LambdaVar.create(l, 1); // this is x.
+        Term lv = LambdaVar.create(l, 1, l); // this is x.
         lam.link = lv; // replace (\\y.y) by x.
 
-        l.insert(t);
+        t = l.insert(t);
 
         System.out.println(l);
 
         System.out.println(t);
     }
+
+    void testLambdaRewrite() {
+        // Simulates Application of the rule 9 X -> \\y.y X
+        // Expected result: \\x.(9 x) --> \\x.(\\y.y x)
+
+        TermList l = new TermList();
+        TermList l2 = new TermList();
+
+        Term lhs = ho("9 X", l);
+        Term rhs = ho("\\y.y X", l);
+
+        Term t2 = ho("\\x.(9 x)", l2);
+
+        Term subterm = t2.arg(0); // (9 x)
+
+        assert lhs.match(subterm);
+
+        Term rewrittenSubterm = l2.insert(rhs);
+
+        Term rewritten = t2.copy(l2, Arrays.asList(rewrittenSubterm));
+
+        System.out.println(rewritten);
+    }
+
 
     void testBetaLambda() {
         // testing whether inserting a lambda variable in a beta reduction causes troubles.
@@ -278,28 +385,16 @@ class TermListTest extends GroovyTestCase {
         Term u = t.normalize(betaFn);
         Term u2 = t2.normalize(betaFn);
 
-        System.out.println(t.toString() + " -> " + u);
-        System.out.println(t2.toString() + " -> " + u2);
+        assert u.toString().equals("\\a.a");
+        assert u2.toString().equals("\\a.a 0");
     }
 
-    void testBeta2() {
-        Term t = ho("\\f.B ((\\x.x) f)", null);
-        Term r = t.normalize(betaFn);
 
-        System.out.println(r);
-    }
 
-    void testBetaReduction() {
 
-        // normal beta reduction
-        Term test1 = ho("(\\x.x 0) (\\y.y)", null);
-        Term r = betaFn.apply(test1, test1.parent);
 
-        assert r.toString().equals("(\\0.%0) 0");
 
-        r = test1.normalize(betaFn);
-        assert r.toString().equals("0");
-
+    void testBetaCycles() {
         // are cycles found?
 
         Term cyclic = ho("(\\x.x x) (\\x.x x)", null);
@@ -328,37 +423,6 @@ class TermListTest extends GroovyTestCase {
             assert true;
         }
 
-        // and some arithmetics
-
-        TermList l = new TermList();
-
-        Term n0 = ho("\\f.\\x.x", l);
-        Term succ = ho("\\n.\\f.\\x.f (n f x)", l);
-
-        r = App.create(l, succ, n0);
-        r = r.normalize(betaFn);
-
-        System.out.println(r);
-
-        Term n2 = ho("\\f.\\x.f (f x)", l);
-        Term n3 = ho("\\f.\\x.f (f (f x))", l);
-        Term n4 = ho("\\f.\\x.f (f (f (f x)))", l);
-
-        Term plus = ho("\\m.\\n.\\f.\\x.m f (n f x)", l);
-        Term mult = ho("\\m.\\n.\\f.m (n f)", l);
-        Term pow = ho("\\b.\\e.e b", l);
-
-        Term add34 = App.create(l, App.create(l, plus, n3), n4);
-        Term mul34 = App.create(l, App.create(l, mult, n3), n4);
-        Term pow34 = App.create(l, App.create(l, pow, n3), n4);
-
-        Term n7 = add34.normalize(betaFn);
-        Term n12 = mul34.normalize(betaFn);
-        Term n81 = pow34.normalize(betaFn);
-
-        System.out.println(n7);
-        System.out.println(n12);
-        System.out.println(n81);
     }
 
     void testCyclicRewriting() {

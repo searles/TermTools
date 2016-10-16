@@ -17,6 +17,9 @@ public class TermList /*implements Iterable<Term>*/ {
     };
 
     private Term head = null;
+    private static int counter = 0;
+
+    final int id = counter++;
 
     public TermList() {}
 
@@ -34,13 +37,7 @@ public class TermList /*implements Iterable<Term>*/ {
      */
     public Term insert(Term t) {
         // first, insert all args of t.
-        t.initLevel(new LinkedList<>());
-
-        Term ret = t.insertInto(this);
-
-        t.uninsert();
-
-        return ret;
+        return t.insertInto(this);
     }
 
     /**

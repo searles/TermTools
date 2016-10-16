@@ -1,26 +1,28 @@
 package at.searles.terms;
 
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Stack;
 
 public class LambdaVar extends Term {
 
-	public static Term create(TermList list, int index) {
-		return list.findOrAppend(new LambdaVar(index), null);
+	public static LambdaVar create(TermList list, int index, TermList scope) {
+		return (LambdaVar) list.findOrAppend(new LambdaVar(index, scope), null);
 	}
 
+	final TermList scope;
 	final int index;
 	Stack<Integer> insertIndices = new Stack<Integer>();
 
-	public LambdaVar(int index) {
-		super(0, index);
+	public LambdaVar(int index, TermList scope) {
 		this.index = index;
+		this.scope = scope;
 	}
 
 	@Override
 	public boolean eq(Term t) {
-		return t instanceof LambdaVar && this.index == ((LambdaVar) t).index;
+		// NEW: Identity of parent is part of it.
+		return t instanceof LambdaVar && this.index == ((LambdaVar) t).index && this.scope == ((LambdaVar) t).scope;
 	}
 
 	@Override
@@ -37,7 +39,7 @@ public class LambdaVar extends Term {
 
 	@Override
 	public Term copy(TermList list, List<Term> args) {
-		return LambdaVar.create(list, index);
+		return LambdaVar.create(list, index, scope);
 	}
 
 	/*@Override
@@ -45,22 +47,14 @@ public class LambdaVar extends Term {
 		return this;
 	}*/
 
-	protected String str() {
-		return "%" + index;
-	}
-
-	@Override
-	public void auxInitLevel(List<LambdaVar> lvs) {
-		lvs.add(this);
-		insertLevel = 0;
-		insertedClosed = false;
-	}
-
-	@Override
-	protected Term auxInsert(TermList list) {
-		// avoid creating too many objects.
-		int newIndex = insertIndices.isEmpty() ? index : insertIndices.peek();
-		return list.findOrAppend(newIndex == index ? this : new LambdaVar(newIndex), null);
+	protected String str(LinkedList<String> vars) {
+		if(scope != parent) {
+			return "%" + index + ":" + scope.id;
+		} else if(0 <= index && index < vars.size()) {
+			return vars.get(index);
+		} else {
+			return "%" + index;
+		}
 	}
 
 	@Override

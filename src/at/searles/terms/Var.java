@@ -1,8 +1,7 @@
 package at.searles.terms;
 
-import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
 public class Var extends Term {
 
@@ -13,7 +12,6 @@ public class Var extends Term {
 	String id;
 
 	public Var(String id) {
-		super(0, -1);
 		this.id = id;
 	}
 
@@ -44,20 +42,8 @@ public class Var extends Term {
 		return this;
 	}*/
 
-	protected String str() {
+	protected String str(LinkedList<String> strings) {
 		return id;
-	}
-
-	@Override
-	public void auxInitLevel(List<LambdaVar> lvs) {
-		insertLevel = 0;
-		insertedClosed = true;
-	}
-
-
-	@Override
-	protected Term auxInsert(TermList list) {
-		return create(list, id);
 	}
 
 	@Override
@@ -74,7 +60,6 @@ public class Var extends Term {
 	public Term replace(int p, Term t) {
 		return null;
 	}
-
 
 	/*@Override
 	protected Term auxShallowInsert(TermList list, Map<String, String> renaming) {

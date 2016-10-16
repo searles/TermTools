@@ -1,7 +1,7 @@
 package at.searles.terms;
 
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
 public class Const<T> extends Term {
 
@@ -12,7 +12,6 @@ public class Const<T> extends Term {
 	final T value;
 
 	public Const(T value) {
-		super(0, -1);
 		this.value = value;
 	}
 
@@ -51,19 +50,8 @@ public class Const<T> extends Term {
 		return this;
 	}*/
 
-	protected String str() {
+	protected String str(LinkedList<String> strings) {
 		return value.toString();
-	}
-
-	@Override
-	public void auxInitLevel(List<LambdaVar> lvs) {
-		insertLevel = 0;
-		insertedClosed = true;
-	}
-
-	@Override
-	protected Term auxInsert(TermList list) {
-		return list.findOrAppend(new Const<>(value), null);
 	}
 
 	@Override

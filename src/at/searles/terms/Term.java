@@ -1,7 +1,6 @@
 package at.searles.terms;
 
 import java.util.*;
-import java.util.function.Function;
 
 public abstract class Term extends TermList.Node {
 
@@ -9,206 +8,36 @@ public abstract class Term extends TermList.Node {
 	 * A note on these functions
 	 *
 	 * link is used for substitutions.
-  	 * This class uses absolute debruijn indices.
-	 * level is the nestedness of lambdas. A level of 3 means that there are 3 nested lambdas below or at the current term.
-	 * maxLambdaIndex is the actual maximum index of a lambda variable. By comparing it to level it can be determined if
-	 * there are any unbound lambda vars below it.
-	 *
+
 	 * normalform is used in connection with link and indicates that there is no 'link' set below or at the current level.
 	 * This allows for some efficiency improvements in connection with inserting terms into a termlist.
 	 *
+  	 * This class uses relative debruijn indices.
+  	 *
 	 */
 
+	/**
+	 * A replacement for this term. This one can be used for fast substitutions.
+	 */
 	public Term link = null; // used for substitutions
+
+	/**
+	 * If this flag is set, then it is guaranteed that no subterm has "link" set.
+	 */
 	public boolean normalform = false; // if true, then it is guaranteed that no subterm has 'link' set.
-
-	public final int level; // lambda level
-	public final int maxLambdaIndex; // max lambda index in a subterm, -1 if no lambda variable below.
-
-	protected Term(int level, int maxLambdaIndex) {
-		this.level = level;
-		this.maxLambdaIndex = maxLambdaIndex;
-	}
-
-	public boolean closed() {
-		return maxLambdaIndex < level;
-	}
 
 	@Override
 	public String toString() {
 		// Just a forward (so that various annotations can be added during testing...)
-		return str();
+		return str(new LinkedList<>());
 	}
 
 	/**
-	 * Simple toString() without consideration of link/inserted etc...
+	 * Simple toString() without consideration of link.
+	 * @param lambdaVars
 	 * @return
      */
-	protected abstract String str();
-
-	// The following fields are used for the insert-algorithm
-
-	/**
-	 * When inserting this term into a List, this is-field stores the pointer onto the list
-	 * node. If no list node has been assigned yet, it contains null.
-	 */
-	private Term inserted = null; // used by insertInto.
-
-	/**
-	 * The lambda level when the term is inserted
-	 */
-	protected int insertLevel = -1; // lambda level of the inserted term.
-
-	/**
-	 * For terms without links, checking whether a term has some bound variables that is not yet bound
-	 * by a lambda can be done via a simple comparison of maxLambdaIndex and level (method closed()).
-	 * If there are links, there may be clashes, therefore I use 'insertedClosed' instead.
-	 * [the same lambda variable might have different insertions depending on other args]
-	 */
-	protected boolean insertedClosed = false;  // true if there are no unbound lambda variables.
-
-	//protected int cycleMark = 0;
-
-	/**
-	 * Checks for a cycle involving link fields. If there is a cycle, true is returned.
-	 * @return
-     *
-	public boolean containsCycle() {
-		boolean ret = auxContainsCycle();
-		unmarkCycles();
-		return ret;
-	}
-
-	protected boolean auxContainsCycle() {
-		if(cycleMark == 1) {
-			return false;
-		} else if(cycleMark == 2) {
-			cycleMark = 0;
-			return true;
-		} else {
-			cycleMark = 2;
-
-			if(link != null) {
-				if(link.auxContainsCycle()) {
-					return true;
-				} else {
-					cycleMark = 1;
-					return false;
-				}
-			} else {
-				int i = 0;
-				for(Term arg : args()) {
-					i++;
-					if(arg.containsCycle()) {
-						return true;
-					}
-				}
-				cycleMark = 1;
-				return false;
-			}
-		}
-	}
-
-	protected void unmarkCycles() {
-		if(cycleMark != 0) {
-			cycleMark = 0;
-			if(link != null) {
-				link.unmarkCycles();
-			} else {
-				for(Term arg : args()) arg.unmarkCycles();
-			}
-		}
-	}*/
-
-	/**
-	 * This method prepares the insertion. It sets the insertLevel and insertedClosed-flag.
-	 * @param lvs lambda variables that are collected in args.
-	 * @return
-     */
-	void initLevel(List<LambdaVar> lvs) throws CycleException {
-		if(insertLevel == -2) { // insert level of -2 indicates that we are stuck in a loop
-			throw new CycleException(this);
-		}
-
-		try {
-			if (insertLevel == -1) {
-				if(link != null) {
-					// here, recursion is used to find loops.
-					insertLevel = -2; // -2 means that we are currently working on this one.
-					link.initLevel(lvs);
-
-					this.insertedClosed = link.insertedClosed;
-					this.insertLevel = link.insertLevel; // ok, no loop here.
-				} else if(!normalform) {
-					// no need to do sth with normalforms.
-					// normalforms are assumed to not have any link field set.
-					insertLevel = -2;
-					auxInitLevel(lvs);
-					assert insertLevel != -2;
-				}
-			}
-		} catch (CycleException o) {
-			// there was a cycle. clean up the mess and be done.
-			this.uninsert();
-			throw o.append(this);
-		}
-	}
-
-	public abstract void auxInitLevel(List<LambdaVar> lvs);
-
-	protected abstract Term auxInsert(TermList list);
-
-	/**
-	 * Inserts the termqueue in 'this' into s. The is-field in 'this' is used to store already inserted nodes.
-	 * It follows links in terms.
-	 * @param list the list in which this is inserted. null causes unexpected behaviour.
-	 * @return the inserted term.
-	 */
-	public Term insertInto(TermList list) {
-		// check whether inserted should be set.
-		// Here, it is checked whether all elements in lvStack (ie all bound variables)
-		// are set to identity.
-		// This could be optimized by limiting this to all bound variables that are actually used in a subterm,
-		// but such an optimization might be memory consuming.
-
-		if(insertedClosed && inserted != null) {
-			return inserted;
-		} else if(link != null) {
-			// link is this can be used for normalizations
-			// resolve link.
-			return inserted = link.insertInto(list);
-		} else if(list != parent || !normalform) {
-			return inserted = this.auxInsert(list);
-		} else {
-			// in this case, this == link and parent == list.
-			return inserted = this;
-		}
-	}
-
-	// The following insert-functions are used if link is not set. They work the same way though
-	// and also use the same fields. Advantage is that if the parents are equal, they might not
-	// be executed at all.
-
-	/**
-	 * insertInto sets the inserted-field to equivalent terms in another termlist
-	 * In order to unset the inserted-field, the tree-term-structure is traversed
-	 * in this recursive function and all insert-fields are cleared (set to null), insertLevel is reset and so is "insertedClosed".
-	 */
-	void uninsert() {
-		if(insertLevel != -1) {
-			inserted = null;
-			insertLevel = -1;
-			insertedClosed = false;
-
-			if(link != null && link != this) {
-				link.uninsert();
-			} else {
-				for (int i = 0; i < arity(); ++i) {
-					arg(i).uninsert();
-				}
-			}
-		}
-	}
+	protected abstract String str(LinkedList<String> lambdaVars);
 
 	/**
 	 * Returns the number of arguments
@@ -232,9 +61,42 @@ public abstract class Term extends TermList.Node {
      */
 	public abstract Term replace(int p, Term t);
 
+	// The following fields are used for the insert-algorithm
+	/**
+	 * Inserts the term in 'this' into the termlist target. It resolves
+	 * link fields while doing this.
+	 * @param target the list in which this is inserted. null causes unexpected behaviour.
+	 * @return the inserted term.
+	 */
+	public Term insertInto(TermList target) {
+		// FIXME could use innermostOnDAG with a filter based on whether link is set. If it is, then
+		// FIXME do a recursive call.
+		if(link != null) {
+			// link is this can be used for normalizations
+			// resolve link.
+			return link.insertInto(target);
+		} else {
+			ArrayList<Term> args = null;
+			if(arity() > 0) {
+				// if there are arguments, they must be inserted first.
+				args = new ArrayList<>(arity());
+
+				for(int i = 0; i < arity(); ++i) {
+					args.add(arg(i).insertInto(target));
+				}
+			}
+
+			Term ret = copy(target, args);
+
+			return ret;
+		}
+	}
+
+
+
 	@FunctionalInterface
 	public interface FilterFn {
-		public Boolean apply(Term t, Integer i);
+		public boolean apply(Term t, int i);
 	}
 
 	@FunctionalInterface
@@ -253,83 +115,6 @@ public abstract class Term extends TermList.Node {
 		public A apply(Term t, List<A> args);
 	}
 
-	/**
-	 * Returns a term in which all lambdas are incremented by d.
-	 * @param d
-	 * @return
-     */
-	Term updateLambda(int d) {
-		if(maxLambdaIndex >= this.level) {
-			// in this case, there are such lambda variables.
-			int lowerLevel = this.level;
-
-			return innermostOnDag(
-					(t, p) -> (t.arg(p).maxLambdaIndex >= lowerLevel), // is there a lambda term below that must be updated?
-					(t, args) -> {
-						// fill in blanks
-						for(int i = 0; i < t.arity(); ++i) {
-							if(args.get(i) == null) args.set(i, t.arg(i));
-						}
-
-						if(t instanceof LambdaVar) {
-							// fixme instanceof is ugly.
-							// update lambda variable
-							LambdaVar lv = (LambdaVar) t;
-
-							// Because of filter, this one is definitely to be updated
-							assert lv.index >= Term.this.level;
-
-							return LambdaVar.create(Term.this.parent, lv.index + d);
-						} else {
-							return t.copy(Term.this.parent, args);
-						}
-					});
-		} else {
-			// otherwise, we are good.
-			return this;
-		}
-	}
-
-	/**
-	 * This one replaces all occurences of some %n by %m. This is needed in beta reductions because
-	 * reducing \1.(\0.%0) %1 would otherwise return \0.%1.
-	 * @param oldIndex
-	 * @param newIndex
-     * @return
-     */
-	public Term replaceLambda(int oldIndex, int newIndex) {
-		// do not replace if lambda newIndex is already bound in subterm.
-		if(maxLambdaIndex >= oldIndex && level <= newIndex) {
-			// in this case, there are such lambda variables.
-			return innermostOnDag(
-					(t, p) -> (t.arg(p).maxLambdaIndex >= oldIndex && t.arg(p).level > newIndex), // is there a lambda term below that must be updated?
-					(t, args) -> {
-						// fill in blanks
-						for(int i = 0; i < t.arity(); ++i) {
-							if(args.get(i) == null) args.set(i, t.arg(i));
-						}
-
-						if(t instanceof LambdaVar) {
-							// fixme instanceof is ugly.
-
-							LambdaVar lv = (LambdaVar) t;
-							if(lv.index == oldIndex) {
-								return LambdaVar.create(Term.this.parent, newIndex);
-							} else {
-								return lv;
-							}
-						} else {
-							return t.copy(Term.this.parent, args);
-						}
-					});
-		} else {
-			// otherwise, we are good.
-			return this;
-		}
-	}
-
-
-
 	/** Applies an operation to all subterms on this term based on the arguments.
 	 * @param filter
 	 * @param postOp
@@ -342,8 +127,12 @@ public abstract class Term extends TermList.Node {
 
 		queue.add(this);
 
+		int maxArity = 0;
+
 		while(!queue.isEmpty()) {
 			Term t = queue.pollLast(); // fetch and remove.
+
+			if(t.arity() > maxArity) maxArity = t.arity();
 
 			// it is guaranteed that due to the ordering, every node will occur only once.
 
@@ -360,13 +149,13 @@ public abstract class Term extends TermList.Node {
 
 		A a = null; // to store the last a.
 
-		ArrayList<A> args = new ArrayList<A>();
+		// create only one array list and reuse it.
+		ArrayList<A> args = new ArrayList<>(maxArity);
 
 		while(!queue2.isEmpty()) {
 			Term t = queue2.pollFirst(); // now in the reverse order
 
 			args.clear();
-			args.ensureCapacity(t.arity());
 
 			for(int i = 0; i < t.arity(); ++i) {
 				args.add(cache.get(t.arg(i)));
@@ -456,7 +245,7 @@ public abstract class Term extends TermList.Node {
 			return this.link == that;
 		} else {
 			if(auxMatch(that)) {
-				if(closed()) this.link = that;
+				/*if(closed()) */this.link = that;
 				return true;
 			} else {
 				return false;
@@ -496,7 +285,7 @@ public abstract class Term extends TermList.Node {
 		else if(this instanceof Var || !(that instanceof Var)) {
 			if(auxUnify(that)) {
 				// link is set inside auxUnify
-				if(closed()) this.link = that;
+				/*if(closed()) */this.link = that;
 				return true;
 			} else {
 				return false;
@@ -529,25 +318,65 @@ public abstract class Term extends TermList.Node {
 		}
 	}
 
+	protected Term shift(int shift, int cutoff) {
+		return innermostOnDag((v, p) -> !(v instanceof Lambda),
+				(v, args) -> {
+					if(v instanceof Lambda) {
+						Lambda lam = (Lambda) v;
+
+						// these ones don't have arguments.
+						return Lambda.create(parent, lam.t.shift(shift, cutoff + 1));
+					} else if(v instanceof LambdaVar) {
+						LambdaVar lv = (LambdaVar) v;
+						if(lv.index >= cutoff) {
+							return LambdaVar.create(parent, lv.index + shift, parent);
+						}
+					}
+
+					// fill in blanks in args
+					for(int i = 0; i < v.arity(); ++i) {
+						if(args.get(i) == null) {
+							args.set(i, v.arg(i));
+						}
+					}
+
+					return v.copy(parent, args);
+				});
+	}
+
 	/**
-	 * check whether these two iterables are identical.
-	 * This one is static so that it can be used
-	 * by all kinds of iterables.
-	 * @param i1
-	 * @param i2
+	 * Method for substituting lambda variables. Used mainly for beta reductions
+	 * @param u Term to be inserted for lambda variable
 	 * @return
 	 */
-	public static boolean checkIdenticalSubterms(Term[] i1, Term[] i2) {
-		if(i1.length == i2.length) {
-			for(int i = 0; i < i1.length; ++i) {
-				if(i1[i] != i2[i]) return false;
-			}
+	protected Term substitute(Term u, int index) {
+		// fixme put into Term
+		return innermostOnDag((t, p) -> !(t instanceof Lambda),
+				(t, args) -> {
+					if(t instanceof Lambda) {
+						Lambda lam = (Lambda) t;
+						Term tSubst = lam.t.substitute(u.shift(1, 0), index + 1);
+						return Lambda.create(parent, tSubst);
+					} else if(t instanceof LambdaVar) {
+						if(((LambdaVar) t).index == index) {
+							return u;
+						}
+					}
 
-			return true;
-		} else {
-			return false;
-		}
+					// in all other cases
+
+					// fill in blanks in args
+					for(int i = 0; i < t.arity(); ++i) {
+						if(args.get(i) == null) {
+							args.set(i, t.arg(i));
+						}
+					}
+
+					return t.copy(parent, args);
+				});
 	}
+
+
 
 	/**
 	 * Creates a copy of this term and inserts it into the termlist (or finds an equivalent term). The arguments in
@@ -643,5 +472,23 @@ public abstract class Term extends TermList.Node {
 		return t;
 	}
 
+	/**
+	 * check whether these two iterables are identical.
+	 * This one is static so that it can be used
+	 * by all kinds of iterables.
+	 * @param i1
+	 * @param i2
+	 * @return
+	 */
+	public static boolean checkIdenticalSubterms(Term[] i1, Term[] i2) {
+		if(i1.length == i2.length) {
+			for(int i = 0; i < i1.length; ++i) {
+				if(i1[i] != i2[i]) return false;
+			}
 
+			return true;
+		} else {
+			return false;
+		}
+	}
 }

@@ -11,28 +11,6 @@ import java.util.function.Function;
 public class Demo {
 
 
-	static void test2() {
-		TermList l1 = new TermList();
-		TermList l2 = new TermList(); // replace this by l1 to see how the inner x is used then.
-
-		Term lfx = TermParserBuilder.HO_BUILDER.parser(l1, s -> true).parse("\\x.F x");
-		Term f = TermParserBuilder.HO_BUILDER.parser(l1, s -> true).parse("F");
-		Term lgx = TermParserBuilder.HO_BUILDER.parser(l2, s -> true).parse("\\x.G x");
-		Term g = TermParserBuilder.HO_BUILDER.parser(l2, s -> true).parse("G");
-		Term l0_1 = LambdaVar.create(l1, 0);
-		Term l0_2 = LambdaVar.create(l2, 0);
-
-		f.link = lgx;
-
-		g.link = l0_1;
-		Term t1 = l1.insert(lfx);
-		System.out.println(t1);
-
-		g.link = l0_2;
-		Term t2 = l1.insert(lfx);
-		System.out.println(t2);
-	}
-
 	static void test3() {
 		// to show that lambda-index can also be reduced.
 		TermList l = new TermList();

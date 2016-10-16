@@ -21,17 +21,13 @@ public class Fun extends Term {
 	private static Term createUnsafe(TermList list, String f, Term[] args) {
 		// insert and find maximum
 		Term max = null;
-		int level = 0;
-		int lambda = -1;
 
 		for(int i = 0; i < args.length; ++i) {
 			Term arg = args[i];
 			if(max == null || arg.index > max.index) max = arg;
-			if(level < arg.level) level = arg.level;
-			if(lambda < arg.maxLambdaIndex) lambda = arg.maxLambdaIndex;
 		}
 
-		return list.findOrAppend(new Fun(f, args, level, lambda), max);
+		return list.findOrAppend(new Fun(f, args), max);
 	}
 
 	/*public static Fun cons(String f, List<Term> args) {
@@ -52,35 +48,9 @@ public class Fun extends Term {
 	String f;
 	Term[] args;
 
-	private Fun(String f, Term[] args, int level, int maxLambdaIndex) {
-		super(level, maxLambdaIndex);
+	public Fun(String f, Term[] args) {
 		this.f = f;
 		this.args = args;
-	}
-
-	@Override
-	public void auxInitLevel(List<LambdaVar> lvs) {
-		insertedClosed = true; // true if all args are insertedClosed
-		insertLevel = 0; // maximum of all args
-
-		for(int i = 0; i < args.length; ++i) {
-			Term arg = args[i];
-			arg.initLevel(lvs);
-
-			if(!arg.insertedClosed) insertedClosed = false;
-			if(arg.insertLevel > insertLevel) insertLevel = arg.insertLevel;
-		}
-	}
-
-	@Override
-	protected Term auxInsert(TermList list) {
-		Term[] nArgs = new Term[args.length];
-
-		for(int i = 0; i < args.length; ++i) {
-			nArgs[i] = args[i].insertInto(list);
-		}
-
-		return Fun.createUnsafe(list, f, nArgs);
 	}
 
 	@Override
@@ -103,7 +73,6 @@ public class Fun extends Term {
 
 		return createUnsafe(parent, f, newArgs);
 	}
-
 
 	@Override
 	public boolean eq(Term t) {
@@ -174,14 +143,14 @@ public class Fun extends Term {
 		}
 	}
 
-	protected String str() {
+	protected String str(LinkedList<String> vars) {
 		if(args.length == 0) {
 			return f + "()";
 		} else {
-			StringBuilder sb = new StringBuilder(f).append("(").append(args[0]);
+			StringBuilder sb = new StringBuilder(f).append("(").append(args[0].str(vars));
 
 			for(int i = 1; i < args.length; ++i) {
-				sb.append(", ").append(args[i]);
+				sb.append(", ").append(args[i].str(vars));
 			}
 
 			return sb.append(")").toString();
@@ -190,27 +159,6 @@ public class Fun extends Term {
 
 	@Override
 	public Term copy(TermList list, List<Term> args) {
-		// this one should use an arraylist.
-		int copy_level = 0;
-
-		for(Term arg : args) {
-			if(copy_level < arg.level) copy_level = arg.level;
-		}
-
-		// first, check whether it has to update this one.
-		int d = copy_level - this.level;
-
-		if(d != 0) {
-			// yes, I must update some lambdas.
-			ListIterator<Term> l = args.listIterator();
-
-			while(l.hasNext()) {
-				Term copy_arg = l.next();
-
-				l.set(copy_arg.updateLambda(d));
-			}
-		}
-
 		return Fun.create(list, this.f, args);
 	}
 }
