@@ -26,7 +26,7 @@ public class RewriteRule {
 	 * @param target if null, then a new termqueue is created.
 	 * @return null if not applicable
 	 */
-	public Term apply(Term t, TermList target, boolean loopCheck) {
+	public Term apply(Term t, TermList target) {
 		if(lhs.match(t)) {
 			Term reduct = target.insert(rhs);
 			lhs.unmatch();

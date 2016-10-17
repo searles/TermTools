@@ -61,37 +61,141 @@ public abstract class Term extends TermList.Node {
      */
 	public abstract Term replace(int p, Term t);
 
+	/**
+	 * Checks whether this is equal to t where for the args
+	 * identity is used. This method is tailored to properly work with the
+	 * insert algorithm to search for terms that were created with the copy method.
+	 * @param t
+	 * @return
+	 */
+	protected abstract boolean eq(Term t);
+
+
 	// The following fields are used for the insert-algorithm
+
 	/**
 	 * Inserts the term in 'this' into the termlist target. It resolves
 	 * link fields while doing this.
-	 * @param target the list in which this is inserted. null causes unexpected behaviour.
+	 * @param target the list in which this is inserted. null causes unexpected behaviour. Additional terms
+	 *               might be inserted in target due to shifting.
+	 * @return the inserted term.
+	 */
+	public Term insertInto2(TermList target) {
+		return innermostOnDag((t, p) -> t.link == null && !(t.normalform && t.parent == target),
+				(t, args) -> {
+					// resolve links using a loop
+					if (t.link != null) {
+						for(t = t.link; t.link != null; t = t.link);
+						return t.insertInto2(target);
+					} else if (t.normalform && t.parent == target) {
+						return t;
+					} else {
+						// fill in blanks
+						for (int i = 0; i < t.arity(); ++i) if (args.get(i) == null) args.set(i, t.arg(i));
+
+						if (t instanceof Lambda) {
+							// now it depends if the scope matches target.
+							Lambda lam = (Lambda) t;
+							if (lam.parent != target) {
+								// First, shift lambda variables to make room for a new variable with index 0.
+								Term u = args.get(0).shift(target, 1, 0);
+
+								// now, substitute %0 in other scope by new lambda variable
+								u = u.substitute(lam.parent, 0, LambdaVar.create(target, 0, target));
+
+								return Lambda.create(target, u);
+							}
+						}
+
+						return t.copy(target, args);
+					}
+				}
+		);
+	}
+
+	Term inserted = null;
+
+	/**
+	 * This one is similar to copy but it does not use a list, but instead the 'inserted'-field in each
+	 * term. This field must be used and set correctly
+	 * @param target
+	 * @return
+     */
+	protected abstract Term copyInserted(TermList target);
+
+	/**
+	 * Inserts the term in 'this' into the termlist target. It resolves
+	 * link fields while doing this.
+	 * @param target the list in which this is inserted. null causes unexpected behaviour. Additional terms
+	 *               might be inserted in target due to shifting.
 	 * @return the inserted term.
 	 */
 	public Term insertInto(TermList target) {
-		// FIXME could use innermostOnDAG with a filter based on whether link is set. If it is, then
-		// FIXME do a recursive call.
-		if(link != null) {
-			// link is this can be used for normalizations
-			// resolve link.
-			return link.insertInto(target);
-		} else {
-			ArrayList<Term> args = null;
-			if(arity() > 0) {
-				// if there are arguments, they must be inserted first.
-				args = new ArrayList<>(arity());
+		if(inserted != null) return inserted;
+		else if(normalform && parent == target) return inserted = this;
+		else if(link != null) {
+			// find end
+			Term t = this;
 
-				for(int i = 0; i < arity(); ++i) {
-					args.add(arg(i).insertInto(target));
-				}
+			// find last one.
+			for(t = t.link; t.link != null; t = t.link) {
+				// t.link == t is used in 'normalize' to mark terms that are currently normalized.
+				if(t.link == t) throw new CycleException(t);
 			}
 
-			Term ret = copy(target, args);
+			inserted = t.insertInto(target);
 
-			return ret;
+			return inserted;
+		} else {
+			for(int i = 0; i < arity(); ++i) arg(i).insertInto(target);
+
+			return inserted = copyInserted(target);
 		}
 	}
 
+	void uninsert() {
+		if(inserted != null) {
+			inserted = null;
+
+			for(int i = 0; i < arity(); ++i) {
+				arg(i).uninsert();
+			}
+
+			if(link != null) link.uninsert();
+		}
+	}
+
+
+
+	/**
+	 * Creates a copy of this term and inserts it into the termlist (or finds an equivalent term). The arguments in
+	 * the argument must be inside list. The resulting term will be also put into list.
+	 * @param args
+	 * @return
+	 */
+	public abstract Term copy(TermList list, List<Term> args);
+
+
+	/**
+	 * If link is set, then go to last linked term and check whether it is a normalform.
+	 * If it isn't one then the normalizing-procedure is stuck in a loop.
+	 * If link is not set, then resolve it.
+	 * @return
+	 */
+	protected Term resolveLinks() {
+		// if link in u is already set, it must have already been rewritten.
+		if(this.link != null) {
+			// go to last link
+			while(this.link.link != null && this.link != this.link.link) this.link = this.link.link;
+
+			// if it isn't a normalform, then sry, a loop.
+			if(!this.link.normalform) throw new CycleException(this.link);
+
+			return this.link;
+		} else {
+			return this;
+		}
+	}
 
 
 	@FunctionalInterface
@@ -169,6 +273,71 @@ public abstract class Term extends TermList.Node {
 		return a;
 	}
 
+
+	protected Term shift(TermList scope, int shift, int cutoff) {
+		return innermostOnDag((v, p) -> !(v instanceof Lambda),
+				(v, args) -> {
+					if(v instanceof Lambda) {
+						Lambda lam = (Lambda) v;
+
+						// these ones don't have arguments.
+						return Lambda.create(parent, lam.t.shift(scope, shift, cutoff + 1));
+					} else if(v instanceof LambdaVar) {
+						LambdaVar lv = (LambdaVar) v;
+						if(lv.scope == scope && lv.index >= cutoff) {
+							return LambdaVar.create(parent, lv.index + shift, parent);
+						}
+					}
+
+					// fill in blanks in args
+					for(int i = 0; i < v.arity(); ++i) {
+						if(args.get(i) == null) {
+							args.set(i, v.arg(i));
+						}
+					}
+
+					return v.copy(parent, args);
+				});
+	}
+
+	/**
+	 * Method for substituting lambda variables. Used mainly for beta reductions
+	 * @param scope Scope (=TermList) of lambda variable to be replaced
+	 * @param index Lambda index to be replaced
+	 * @param replacement Term to be inserted for lambda variable. The replacement must have scope of this.parent.
+	 * @return
+	 */
+	protected Term substitute(TermList scope, int index, Term replacement) {
+		// fixme put into Term
+		return innermostOnDag((t, p) -> !(t instanceof Lambda),
+				(t, args) -> {
+					if(t instanceof Lambda) {
+						Lambda lam = (Lambda) t;
+						Term tSubst = lam.t.substitute(scope, index + 1, replacement.shift(parent, 1, 0));
+						return Lambda.create(parent, tSubst);
+					} else if(t instanceof LambdaVar) {
+						LambdaVar lv = (LambdaVar) t;
+						if(lv.index == index && lv.scope == scope) {
+							return replacement;
+						}
+					}
+
+					// in all other cases
+
+					// fill in blanks in args
+					for(int i = 0; i < t.arity(); ++i) {
+						if(args.get(i) == null) {
+							args.set(i, t.arg(i));
+						}
+					}
+
+					return t.copy(parent, args);
+				});
+	}
+
+
+
+
 	/** Applies an operation to all subterms on this term based on the arguments.
 	 * This one uses recursion.
 	 * @param filter
@@ -218,14 +387,6 @@ public abstract class Term extends TermList.Node {
 	}
 
 
-	/**
-	 * Checks whether this is equal to t where for the args
-	 * identity is used. This method is tailored to properly work with the
-	 * insert algorithm to search for terms that were created with the copy method.
-	 * @param t
-	 * @return
-     */
-	protected abstract boolean eq(Term t);
 
 
 	private int mark = 0; // for some algorithms, eg match and unification and cycleMark use this field
@@ -318,95 +479,7 @@ public abstract class Term extends TermList.Node {
 		}
 	}
 
-	protected Term shift(int shift, int cutoff) {
-		return innermostOnDag((v, p) -> !(v instanceof Lambda),
-				(v, args) -> {
-					if(v instanceof Lambda) {
-						Lambda lam = (Lambda) v;
 
-						// these ones don't have arguments.
-						return Lambda.create(parent, lam.t.shift(shift, cutoff + 1));
-					} else if(v instanceof LambdaVar) {
-						LambdaVar lv = (LambdaVar) v;
-						if(lv.index >= cutoff) {
-							return LambdaVar.create(parent, lv.index + shift, parent);
-						}
-					}
-
-					// fill in blanks in args
-					for(int i = 0; i < v.arity(); ++i) {
-						if(args.get(i) == null) {
-							args.set(i, v.arg(i));
-						}
-					}
-
-					return v.copy(parent, args);
-				});
-	}
-
-	/**
-	 * Method for substituting lambda variables. Used mainly for beta reductions
-	 * @param u Term to be inserted for lambda variable
-	 * @return
-	 */
-	protected Term substitute(Term u, int index) {
-		// fixme put into Term
-		return innermostOnDag((t, p) -> !(t instanceof Lambda),
-				(t, args) -> {
-					if(t instanceof Lambda) {
-						Lambda lam = (Lambda) t;
-						Term tSubst = lam.t.substitute(u.shift(1, 0), index + 1);
-						return Lambda.create(parent, tSubst);
-					} else if(t instanceof LambdaVar) {
-						if(((LambdaVar) t).index == index) {
-							return u;
-						}
-					}
-
-					// in all other cases
-
-					// fill in blanks in args
-					for(int i = 0; i < t.arity(); ++i) {
-						if(args.get(i) == null) {
-							args.set(i, t.arg(i));
-						}
-					}
-
-					return t.copy(parent, args);
-				});
-	}
-
-
-
-	/**
-	 * Creates a copy of this term and inserts it into the termlist (or finds an equivalent term). The arguments in
-	 * the argument must be inside list. The resulting term will be also put into list.
-	 * @param args
-	 * @return
-     */
-	public abstract Term copy(TermList list, List<Term> args);
-
-
-	/**
-	 * If link is set, then go to last linked term and check whether it is a normalform.
-	 * If it isn't one then the normalizing-procedure is stuck in a loop.
-	 * If link is not set, then resolve it.
-	 * @return
-     */
-	Term resolveLinks() {
-		// if link in u is already set, it must have already been rewritten.
-		if(this.link != null) {
-			// go to last link
-			while(this.link.link != null && this.link != this.link.link) this.link = this.link.link;
-
-			// if it isn't a normalform, then sry, a loop.
-			if(!this.link.normalform) throw new CycleException(this.link);
-
-			return this.link;
-		} else {
-			return this;
-		}
-	}
 
 	/**
 	 * Normalizes a term t using the term function fn. The reducts are stored inside the same termlist as t and the

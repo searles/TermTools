@@ -105,6 +105,63 @@ class TermListTest extends GroovyTestCase {
         assert n84 == n84_2;
     }
 
+    void testInsert() {
+        // part 2:
+        // This test shows some ambiguity in connection with
+        // link and links to lambda vars.
+        // No way to avoid it but need to keep it consistent.
+        TermList l1 = new TermList();
+        TermList l2 = new TermList(); // replace this by l1 to see how the inner x is used then.
+
+        Term lfx = ho("\\x.F x", l1);
+        Term f = ho("F", l1);
+        Term l0_1 = LambdaVar.create(l1, 0, l1);
+
+        Term lgx = ho("\\x.G x", l2);
+        Term g = ho("G", l2);
+        Term l0_2 = LambdaVar.create(l2, 0, l2);
+
+        f.link = lgx; // F -> \\x.G x
+        g.link = l0_1; // G -> lambda var in l1
+
+        Term t1 = l1.insert(lfx);
+
+        assert t1.toString().equals("\\a.(\\b.a b) a");
+
+        g.link = l0_2;  // G -> lambda var in l1
+        Term t2 = l1.insert(lfx);
+
+        assert t2.toString().equals("\\a.(\\b.b b) a");
+    }
+
+
+    void testInsert2() {
+        // part 1:
+        TermList l = new TermList();
+        Term t1 = ho("\\x.(\\y.X (x y)) (\\z.(x z) Y)", l); //
+
+        Term t2 = ho("X", l);
+        Term t3 = ho("Y", l);
+        Term t4 = ho("\\x.S", l);
+        Term t5 = ho("\\x y.S", l);
+
+        // this test is interesting to check the behavior of inserting it.
+        t2.link = t4;
+        t3.link = t5;
+
+        TermList l2 = new TermList();
+
+        Term post = l2.insert(t1);
+
+        // expected result
+        Term u = ho("\\a.(\\b.(\\c.S) (a b)) (\\b.a b (\\c.\\d.S))", l2); // expected result
+
+        assert u == post;
+        assert u.toString().equals("\\a.(\\b.(\\c.S) (a b)) (\\b.a b (\\c.\\d.S))");
+    }
+
+
+
     void testUpdateLambda3() {
         // test multiple applications of copy.
         TermList l = new TermList();
@@ -181,80 +238,6 @@ class TermListTest extends GroovyTestCase {
         assert u == post;
         assert u.toString().equals("\\a.(\\b.(\\c.S) (a b)) (\\b.a b (\\c.\\d.S))");
     }
-
-    void testInsert() {
-        // part 1:
-        TermList l = new TermList();
-        Term t1 = ho("\\x.(\\y.X (x y)) (\\z.(x z) Y)", l); //
-
-        Term t2 = ho("X", l);
-        Term t3 = ho("Y", l);
-        Term t4 = ho("\\x.S", l);
-        Term t5 = ho("\\x y.S", l);
-
-        // this test is interesting to check the behavior of inserting it.
-        t2.link = t4;
-        t3.link = t5;
-
-        TermList l2 = new TermList();
-
-        Term post = l2.insert(t1);
-
-        // expected result
-        Term u = ho("\\x.(\\y.(\\z.S) (x y)) (\\z.(x z) (\\z.\\w.S))", l2); // expected result
-
-        assert u == post;
-        assert u.toString().equals("\\3.(\\1.(\\0.S) (v3 v1)) (\\2.v3 v2 (\\1.\\0.S))");
-    }
-
-    void testInsert2() {
-        // part 2:
-        // This test shows some ambiguity in connection with
-        // link and links to lambda vars.
-        // No way to avoid it but need to keep it consistent.
-        TermList l1 = new TermList();
-        TermList l2 = new TermList(); // replace this by l1 to see how the inner x is used then.
-
-        Term lfx = ho("\\x.F x", l1);
-        Term f = ho("F", l1);
-        Term l0_1 = LambdaVar.create(l1, 0, l1);
-
-        Term lgx = ho("\\x.G x", l2);
-        Term g = ho("G", l2);
-        Term l0_2 = LambdaVar.create(l2, 0, l2);
-
-        f.link = lgx; // F -> \\x.G x
-        g.link = l0_1; // G -> lambda var in l1
-
-        Term t1 = l1.insert(lfx);
-
-        assert t1.toString().equals("\\1.(\\0.v1 v0) v1");
-
-        g.link = l0_2;  // G -> lambda var in l1
-        Term t2 = l1.insert(lfx);
-
-        assert t2.toString().equals("\\1.(\\0.v0 v0) v1");
-    }
-
-    void testUpdateLambdaReduced() {
-        // this is a thing in beta reductions:
-        // \1.(\0.X) v1 and the first thing is replaced by some A, then the second argument, v1, must become v0.
-        Term t = ho("\\x.(\\y.X) x", null);
-        Term u = t.arg(0).arg(0);
-
-        Term x = t.arg(0).arg(0).arg(0);
-        Term v1 = t.arg(0).arg(1);
-
-        // u.link = x;
-        // t = t.parent.insert(t);
-
-        Term v = t.arg(0).copy(t.parent, Arrays.asList(x, v1));
-
-        // This one must update the second argument because the level is reduced.
-
-        System.out.println(v);
-    }
-
     static String num(int i) {
         String s = "0";
         while(i > 0) {
@@ -299,7 +282,7 @@ class TermListTest extends GroovyTestCase {
             return nf;
         } finally {
             double dur = System.currentTimeMillis() - time;
-            System.out.printf("Duration: v.3fs\n", dur / 1000.0);
+            System.out.printf("Duration: %.3fs\n", dur / 1000.0);
         }
     }
 
@@ -316,10 +299,13 @@ class TermListTest extends GroovyTestCase {
                 "<(0, s(x)) -> true() " +
                 "<(x, 0) -> false() " +
                 "/(x,y) -> pair(0, x) <=  <(x,y) -> true() " +
-                "/(x,y) -> pair(s(q), r) <=  <(x,y) -> false(), /(-(x,y), y) -> pair(q,r) ";
+                "/(x,y) -> pair(s(q), r) <= <(x,y) -> false(), /(-(x,y), y) -> pair(q,r) ";
 
         // how cool is that, 6^6/6^5 in 107 seconds...
-        // 5^6 / 5^5 takes 10 seconds.
+        // 5^6 / 5^5 takes 10 seconds (before changing to relative debruijn)
+        // after changing to relative debruijn with insertInto using innermostOnDag it is 19 seconds.
+        // With the inserted field it is down to 8 seconds.
+        // For 6^6 / 6^5 it is even only 76 seconds.
         String term = math("/", math("^", 5, 6), math("^", 5, 5));
 
         Term nf = rewriteCTRS(ctrs, term);
@@ -338,20 +324,6 @@ class TermListTest extends GroovyTestCase {
             }
         }
     };
-
-    void testLambdaReplace() {
-        TermList l = new TermList();
-        Term t = ho("\\x.B (\\y.y)", l);
-        Term lam = ho("\\y.y", l);
-        Term lv = LambdaVar.create(l, 1, l); // this is x.
-        lam.link = lv; // replace (\\y.y) by x.
-
-        t = l.insert(t);
-
-        System.out.println(l);
-
-        System.out.println(t);
-    }
 
     void testLambdaRewrite() {
         // Simulates Application of the rule 9 X -> \\y.y X
@@ -373,7 +345,7 @@ class TermListTest extends GroovyTestCase {
 
         Term rewritten = t2.copy(l2, Arrays.asList(rewrittenSubterm));
 
-        System.out.println(rewritten);
+        assert rewritten.toString().equals("\\a.\\b.b a");
     }
 
 
@@ -451,6 +423,17 @@ class TermListTest extends GroovyTestCase {
             assert false;
         } catch(CycleException ignored) {}
 
+        // final test: TRS contains a check that tries other rules if one lead to a cycle
+        // and only if in this case there is no rule without a cycle, only then the exception is thrown.
+        try {
+            Term nf = rewriteCTRS("f(x) -> z <= f(x) -> z  f(x) -> a", "f(x)");
+            assert true;
+        } catch(CycleException ignored) {
+            assert false;
+        }
+
     }
+
+
 
 }

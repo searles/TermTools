@@ -50,11 +50,24 @@ public class CTRS implements TermFn {
     public Term apply(Term t, TermList target) {
         // reduces root of t by one step. Result is put into target.
         // If t cannot be reduced
+        CycleException ex = null;
+
         for(ConditionalRule r : rules) {
-            Term u = r.apply(t, target, this);
-            if(u != null) return u;
+            try {
+                Term u = r.apply(t, target, this);
+                if (u != null) {
+                    return u;
+                }
+            } catch(CycleException c) {
+                // If a rule leads to a cycle, try another rule. Maybe we will find a normalform.
+                ex = c;
+            }
         }
 
+        // there were only cycles?
+        if(ex != null) throw ex;
+
+        // No, but the term could not be reduced, thus return null.
         return null;
     }
 

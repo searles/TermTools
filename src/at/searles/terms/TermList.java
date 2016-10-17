@@ -37,7 +37,12 @@ public class TermList /*implements Iterable<Term>*/ {
      */
     public Term insert(Term t) {
         // first, insert all args of t.
-        return t.insertInto(this);
+        try {
+            return t.insertInto(this);
+        } finally {
+            // this one might throw some CyclicException. Make sure that in this case all fields are reset.
+            t.uninsert();
+        }
     }
 
     /**

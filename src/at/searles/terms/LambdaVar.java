@@ -39,7 +39,7 @@ public class LambdaVar extends Term {
 
 	@Override
 	public Term copy(TermList list, List<Term> args) {
-		return LambdaVar.create(list, index, scope);
+		return list == parent ? this : LambdaVar.create(list, index, scope);
 	}
 
 	/*@Override
@@ -70,6 +70,11 @@ public class LambdaVar extends Term {
 	@Override
 	public Term replace(int p, Term t) {
 		return null;
+	}
+
+	@Override
+	protected Term copyInserted(TermList target) {
+		return copy(target, null);
 	}
 
 	/*@Override

@@ -19,11 +19,9 @@ public class Lambda extends Term {
 	public Term beta(Term u) {
 		// \x.t u -> ([u^1/0]t)^-1
 		// see eg http://ttic.uchicago.edu/~pl/classes/CMSC336-Winter08/lectures/lec5.pdf
-		Term uShift = u.shift(1, 0);
-		Term tSubst = t.substitute(uShift, 0);
-		Term ret = tSubst.shift(-1, 0);
-
-		return ret;
+		Term uShift = u.shift(parent, 1, 0);
+		Term tSubst = t.substitute(parent, 0, uShift);
+		return tSubst.shift(parent, -1, 0);
 	}
 
 	@Override
@@ -49,6 +47,23 @@ public class Lambda extends Term {
 	@Override
 	public boolean eq(Term t) {
 		return t instanceof Lambda && this.t == ((Lambda) t).t;
+	}
+
+	@Override
+	protected Term copyInserted(TermList target) {
+		// now it depends if the scope matches target.
+		if (parent != target) {
+			// First, shift lambda variables to make room for a new variable with index 0.
+			// the scope of the shifted lambda vars is target.
+			Term u = t.inserted.shift(target, 1, 0);
+
+			// now, substitute %0 in parent by new lambda variable in new scope.
+			u = u.substitute(parent, 0, LambdaVar.create(target, 0, target));
+
+			return inserted = Lambda.create(target, u);
+		} else {
+			return Lambda.create(target, t.inserted);
+		}
 	}
 
 	@Override

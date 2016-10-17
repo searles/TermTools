@@ -30,6 +30,11 @@ public class Const<T> extends Term {
 	}
 
 	@Override
+	protected Term copyInserted(TermList target) {
+		return target == parent ? this : Const.create(target, value);
+	}
+
+	@Override
 	protected boolean auxMatch(Term that) {
 		return (that instanceof Const) && value.equals(((Const) that).value);
 	}

@@ -54,6 +54,11 @@ public class App extends Term {
 	}
 
 	@Override
+	protected Term copyInserted(TermList target) {
+		return App.create(target, l.inserted, r.inserted);
+	}
+
+	@Override
 	protected boolean auxMatch(Term that) {
 		if(that instanceof App) {
 			App a = (App) that;

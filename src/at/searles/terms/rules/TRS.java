@@ -46,7 +46,7 @@ public class TRS implements TermFn {
 	 * Applies this rewrite system to the term t.
 	 * @param t The term to be reduced
 	 * @param target The termlist into which the result is inserted.
-     * @return The reduct (first one found) or null if the term is irreducible.
+     * @return The reduct (first one found) or null if the term is irreducible. In case of cycles a CycleException is thrown.
      */
 	public Term apply(Term t, TermList target) {
 		// reduces root of t by one step. Result is put into target.
@@ -55,7 +55,7 @@ public class TRS implements TermFn {
 
 		for(RewriteRule r : rules) {
 			try {
-				Term u = r.apply(t, target, false);
+				Term u = r.apply(t, target);
 				if (u != null) {
 					return u;
 				}

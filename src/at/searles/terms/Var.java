@@ -34,7 +34,7 @@ public class Var extends Term {
 
 	@Override
 	public Term copy(TermList list, List<Term> args) {
-		return Var.create(list, id);
+		return list == parent ? this : Var.create(list, id);
 	}
 
 	/*@Override
@@ -59,6 +59,11 @@ public class Var extends Term {
 	@Override
 	public Term replace(int p, Term t) {
 		return null;
+	}
+
+	@Override
+	protected Term copyInserted(TermList target) {
+		return copy(target, null);
 	}
 
 	/*@Override

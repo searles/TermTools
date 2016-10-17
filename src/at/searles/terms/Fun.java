@@ -161,4 +161,19 @@ public class Fun extends Term {
 	public Term copy(TermList list, List<Term> args) {
 		return Fun.create(list, this.f, args);
 	}
+
+	@Override
+	protected Term copyInserted(TermList target) {
+		// this arrays will be used right away
+		Term args[] = new Term[arity()];
+
+		for(int i = 0; i < arity(); ++i) {
+			if(arg(i).inserted == null) {
+				throw new IllegalArgumentException();
+			}
+			args[i] = arg(i).inserted;
+		}
+
+		return Fun.createUnsafe(target, f, args);
+	}
 }
