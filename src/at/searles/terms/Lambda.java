@@ -88,6 +88,11 @@ public class Lambda extends Term {
 		return Lambda.create(list, copy_t);
 	}
 
+	@Override
+	public <A> A visit(TermVisitor<A> visitor) {
+		return visitor.visitLambda(this);
+	}
+
 	protected String str(LinkedList<String> vars) {
 		char ch = (char) ('a' + vars.size());
 

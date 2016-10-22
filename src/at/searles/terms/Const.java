@@ -50,6 +50,11 @@ public class Const<T> extends Term {
 		return Const.create(list, this.value);
 	}
 
+	@Override
+	public <A> A visit(TermVisitor<A> visitor) {
+		return visitor.visitConst(this);
+	}
+
 	/*@Override
 	public Term copy(List<Term> args) {
 		return this;

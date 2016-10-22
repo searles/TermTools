@@ -219,6 +219,14 @@ public abstract class Term extends TermList.Node {
 		public A apply(Term t, List<A> args);
 	}
 
+	/**
+	 * Method for a visitor
+	 * @param visitor
+	 * @param <A>
+     * @return
+     */
+	public abstract <A> A visit(TermVisitor<A> visitor);
+
 	/** Applies an operation to all subterms on this term based on the arguments.
 	 * @param filter
 	 * @param postOp
@@ -273,8 +281,11 @@ public abstract class Term extends TermList.Node {
 		return a;
 	}
 
+	// TODO: Development rewriting
+	// TODO: Don't forget the extension of development rewriting.
 
 	protected Term shift(TermList scope, int shift, int cutoff) {
+		// fixme get rid of 'instanceof'
 		return innermostOnDag((v, p) -> !(v instanceof Lambda),
 				(v, args) -> {
 					if(v instanceof Lambda) {
@@ -308,7 +319,7 @@ public abstract class Term extends TermList.Node {
 	 * @return
 	 */
 	protected Term substitute(TermList scope, int index, Term replacement) {
-		// fixme put into Term
+		// fixme get rid of instanceof
 		return innermostOnDag((t, p) -> !(t instanceof Lambda),
 				(t, args) -> {
 					if(t instanceof Lambda) {
@@ -543,25 +554,5 @@ public abstract class Term extends TermList.Node {
 		}
 
 		return t;
-	}
-
-	/**
-	 * check whether these two iterables are identical.
-	 * This one is static so that it can be used
-	 * by all kinds of iterables.
-	 * @param i1
-	 * @param i2
-	 * @return
-	 */
-	public static boolean checkIdenticalSubterms(Term[] i1, Term[] i2) {
-		if(i1.length == i2.length) {
-			for(int i = 0; i < i1.length; ++i) {
-				if(i1[i] != i2[i]) return false;
-			}
-
-			return true;
-		} else {
-			return false;
-		}
 	}
 }

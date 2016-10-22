@@ -37,6 +37,11 @@ public class Var extends Term {
 		return list == parent ? this : Var.create(list, id);
 	}
 
+	@Override
+	public <A> A visit(TermVisitor<A> visitor) {
+		return visitor.visitVar(this);
+	}
+
 	/*@Override
 	public Term copy(List<Term> args) {
 		return this;

@@ -105,6 +105,11 @@ public class App extends Term {
 		return App.create(list, copy_l, copy_r);
 	}
 
+	@Override
+	public <A> A visit(TermVisitor<A> visitor) {
+		return visitor.visitApp(this);
+	}
+
 	protected String str(LinkedList<String> vars) {
 		String sl = l.str(vars);
 		String sr = r.str(vars);

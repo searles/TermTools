@@ -17,6 +17,13 @@ class TermListTest extends GroovyTestCase {
         }
     };
 
+    static final Function<String, Boolean> isUpperVar = new Function<String, Boolean>() {
+        @Override
+        Boolean apply(String s) {
+            return Character.isUpperCase(s.charAt(0));
+        }
+    };
+
     static Term ho(String s, TermList l) {
         if(l == null) l = new TermList();
         Parser<Term> p = TermParserBuilder.HO_BUILDER.parser(l, isVar);
@@ -362,10 +369,6 @@ class TermListTest extends GroovyTestCase {
     }
 
 
-
-
-
-
     void testBetaCycles() {
         // are cycles found?
 
@@ -434,6 +437,63 @@ class TermListTest extends GroovyTestCase {
 
     }
 
+    void testLinearize() {
+        Iterator<String> varStream = new Iterator<String>() {
+            int i = 0;
+
+            @Override
+            boolean hasNext() {
+                return true
+            }
+
+            @Override
+            String next() {
+                return "x" + (i++);
+            }
+        }
+
+        // function for linearization
+        TermFn lin = new TermFn() {
+            public Term apply(Term t, TermList target) {
+                if (t instanceof Var) {
+                    return Var.create(t.parent, varStream.next())
+                } else {
+                    return null
+                }
+            }
+        };
+
+        Term t = ho("\\X.f[X,Y,Z,g[X,Y]]", new TermList());
+
+        System.out.println(t);
+
+        Term u = TermFn.subtermTree(lin, t, t.parent);
+
+        assert u.toString().equals("\\a.f(a, x0, x1, g(a, x2))");
+    }
+
+    void testCon() {
+        // replaces all f-rooted terms by a bot.
+        TermFn con = new TermFn() {
+            public Term apply(Term t, TermList target) {
+                if (t instanceof Fun && (((Fun) t).f.equals("f"))) {
+                    return Const.create(target, "bot");
+                } else {
+                    return null
+                }
+            }
+        };
+
+        Term t = ho("\\X.g[X,f[A,Y],Z,h[X,f[Y,Z]]]", new TermList());
+
+        System.out.println(t);
+
+        Term u = TermFn.subtermDag(con, t, t.parent);
+
+        System.out.println(u);
+
+        assert u.toString().equals("\\a.g(a, bot, Z, h(a, bot))");
+    }
 
 
 }

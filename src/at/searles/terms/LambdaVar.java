@@ -42,6 +42,11 @@ public class LambdaVar extends Term {
 		return list == parent ? this : LambdaVar.create(list, index, scope);
 	}
 
+	@Override
+	public <A> A visit(TermVisitor<A> visitor) {
+		return visitor.visitLambdaVar(this);
+	}
+
 	/*@Override
 	public Term copy(List<Term> args) {
 		return this;

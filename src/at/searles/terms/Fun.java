@@ -76,7 +76,15 @@ public class Fun extends Term {
 
 	@Override
 	public boolean eq(Term t) {
-		return t instanceof Fun && f.equals(((Fun) t).f) && Term.checkIdenticalSubterms(args, ((Fun) t).args);
+		if(t instanceof Fun && f.equals(((Fun) t).f) && t.arity() == args.length) {
+			for(int i = 0; i < args.length; ++i) {
+				if(args[i] != t.arg(i)) return false;
+			}
+
+			return true;
+		}
+
+		return false;
 	}
 
 	@Override
@@ -160,6 +168,11 @@ public class Fun extends Term {
 	@Override
 	public Term copy(TermList list, List<Term> args) {
 		return Fun.create(list, this.f, args);
+	}
+
+	@Override
+	public <A> A visit(TermVisitor<A> visitor) {
+		return visitor.visitFun(this);
 	}
 
 	@Override
