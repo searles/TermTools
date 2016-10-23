@@ -60,7 +60,7 @@ public interface TermFn {
         }
     }
 
-    public static Term subtermDag(TermFn fn, Term t, TermList target) {
+    default Term subtermDag(TermFn fn, Term t, TermList target) {
         TreeMap<Term, Term> cache = new TreeMap<>(TermList.CMP);
 
         TreeSet<Term> queue = new TreeSet<>(TermList.CMP);

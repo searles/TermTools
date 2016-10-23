@@ -181,19 +181,29 @@ class TermListTest extends GroovyTestCase {
 
         // I use innermostOnDag.
 
-        Term post = t1.innermostOnDag(new Term.FilterFn() {
+        def visitor = new DAGVisitor<Term>() {
+            ArrayList<Term> args = new ArrayList<>();
             @Override
-            boolean apply(Term t, int i) {
-                return true;
-            }
-        }, new Term.PostOp<Term>() {
-            @Override
-            Term apply(Term t, List<Term> args) {
-                // all args are set.
+            protected Term eval(Term t) {
                 if(t == t2) return t3;
-                else return t.copy(l, args);
+                else {
+                    for(int i = 0; i < t.arity(); ++i) {
+                        t.arg(i).visit(this);
+                    }
+
+                    args.clear();
+                    args.ensureCapacity(t.arity());
+
+                    for(int i = 0; i < t.arity(); ++i) {
+                        args.add(get(t.arg(i)));
+                    }
+
+                    return t.copy(t.parent, args);
+                }
             }
-        });
+        };
+
+        Term post = t1.visit(visitor);
 
         System.out.println(t1);
         System.out.println(post);
@@ -222,22 +232,38 @@ class TermListTest extends GroovyTestCase {
 
         // t2 should be replaced by t4 and t3 should be replaced by t5.
 
-        // I use innermostOnDag.
 
-        Term post = t1.innermostOnDag(new Term.FilterFn() {
+        def visitor = new DAGVisitor<Term>() {
+            ArrayList<Term> args = null;
+
             @Override
-            boolean apply(Term t, int i) {
-                return true;
+            protected Term eval(Term t) {
+                if (t == t2) return t4;
+                else if (t == t3) return t5;
+                else {
+                    // visit all subnodes
+                    for (int i = 0; i < t.arity(); ++i) {
+                        t.arg(i).visit(this);
+                    }
+
+                    // now all subnodes were visited, so collect them
+                    if (args == null && t.arity() != null) {
+                        args = new ArrayList<>(t.arity());
+                    } else {
+                        args.clear();
+                        args.ensureCapacity(t.arity());
+                    }
+
+                    for (int i = 0; i < t.arity(); ++i) {
+                        args.add(get(t.arg(i)))
+                    }
+
+                    return t.copy(t.parent, args);
+                }
             }
-        }, new Term.PostOp<Term>() {
-            @Override
-            Term apply(Term t, List<Term> args) {
-                // all args are set.
-                if(t == t2) return t4;
-                else if(t == t3) return t5;
-                else return t.copy(l, args);
-            }
-        });
+        };
+
+        Term post = t1.visit(visitor)
 
         // expected result
         Term u = ho("\\x.(\\y.(\\z.S) (x y)) (\\z.(x z) (\\z.\\w.S))", l); // expected result
@@ -467,7 +493,27 @@ class TermListTest extends GroovyTestCase {
 
         System.out.println(t);
 
-        Term u = TermFn.subtermTree(lin, t, t.parent);
+        Term u = t.visit(new TermVisitor<Term>() {
+            int counter = 0;
+
+            @Override
+            public Term visit(Term term) {
+                ArrayList<Term> args = term.arity() > 0 ? new ArrayList<>(term.arity()) : null;
+
+                for(int i = 0; i < term.arity(); ++i) {
+                    args.add(term.arg(i).visit(this));
+                }
+
+                return term.copy(term.parent, args);
+            }
+
+            @Override
+            public Term visitVar(Var v) {
+                String id = "x" + counter;
+                counter++;
+                return Var.create(v.parent, id);
+            }
+        });
 
         assert u.toString().equals("\\a.f(a, x0, x1, g(a, x2))");
     }

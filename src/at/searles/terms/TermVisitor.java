@@ -1,5 +1,7 @@
 package at.searles.terms;
 
+import org.testng.annotations.Optional;
+
 import java.util.TreeMap;
 
 /**
@@ -7,7 +9,9 @@ import java.util.TreeMap;
  */
 public interface TermVisitor<A> {
 
-    A visit(Term t);
+    default A visit(Term t) {
+        throw new UnsupportedOperationException();
+    }
 
     default A visitFun(Fun f) {
         return visit(f);
@@ -33,72 +37,5 @@ public interface TermVisitor<A> {
         return visit(app);
     }
 
-    default TermVisitor<A> toDAGVisitor() {
-        return new DAGVisitor<A>(this);
-    }
 
-    class DAGVisitor<A> implements TermVisitor<A> {
-        private final TermVisitor<A> parent;
-            private final TreeMap<Term, A> cache = new TreeMap<>(TermList.CMP);
-
-        public DAGVisitor(TermVisitor<A> parent) {
-            this.parent = parent;
-        }
-
-        public A visit(Term t) {
-            if (cache.containsKey(t)) {
-                return cache.get(t);
-            } else {
-                return cache.put(t, parent.visit(t));
-            }
-        }
-
-        public A visitFun(Fun f) {
-            if (cache.containsKey(f)) {
-                return cache.get(f);
-            } else {
-                return cache.put(f, parent.visitFun(f));
-            }
-        }
-
-        public A visitConst(Const<?> c) {
-            if (cache.containsKey(c)) {
-                return cache.get(c);
-            } else {
-                return cache.put(c, parent.visitConst(c));
-            }
-        }
-
-        public A visitVar(Var v) {
-            if (cache.containsKey(v)) {
-                return cache.get(v);
-            } else {
-                return cache.put(v, parent.visitVar(v));
-            }
-        }
-
-        public A visitLambda(Lambda l) {
-            if (cache.containsKey(l)) {
-                return cache.get(l);
-            } else {
-                return cache.put(l, parent.visitLambda(l));
-            }
-        }
-
-        public A visitLambdaVar(LambdaVar lv) {
-            if (cache.containsKey(lv)) {
-                return cache.get(lv);
-            } else {
-                return cache.put(lv, parent.visitLambdaVar(lv));
-            }
-        }
-
-        public A visitApp(App app) {
-            if (cache.containsKey(app)) {
-                return cache.get(app);
-            } else {
-                return cache.put(app, parent.visitApp(app));
-            }
-        }
-    }
 }

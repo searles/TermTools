@@ -71,47 +71,6 @@ public abstract class Term extends TermList.Node {
 	protected abstract boolean eq(Term t);
 
 
-	// The following fields are used for the insert-algorithm
-
-	/**
-	 * Inserts the term in 'this' into the termlist target. It resolves
-	 * link fields while doing this.
-	 * @param target the list in which this is inserted. null causes unexpected behaviour. Additional terms
-	 *               might be inserted in target due to shifting.
-	 * @return the inserted term.
-	 */
-	public Term insertInto2(TermList target) {
-		return innermostOnDag((t, p) -> t.link == null && !(t.normalform && t.parent == target),
-				(t, args) -> {
-					// resolve links using a loop
-					if (t.link != null) {
-						for(t = t.link; t.link != null; t = t.link);
-						return t.insertInto2(target);
-					} else if (t.normalform && t.parent == target) {
-						return t;
-					} else {
-						// fill in blanks
-						for (int i = 0; i < t.arity(); ++i) if (args.get(i) == null) args.set(i, t.arg(i));
-
-						if (t instanceof Lambda) {
-							// now it depends if the scope matches target.
-							Lambda lam = (Lambda) t;
-							if (lam.parent != target) {
-								// First, shift lambda variables to make room for a new variable with index 0.
-								Term u = args.get(0).shift(target, 1, 0);
-
-								// now, substitute %0 in other scope by new lambda variable
-								u = u.substitute(lam.parent, 0, LambdaVar.create(target, 0, target));
-
-								return Lambda.create(target, u);
-							}
-						}
-
-						return t.copy(target, args);
-					}
-				}
-		);
-	}
 
 	Term inserted = null;
 
@@ -233,7 +192,7 @@ public abstract class Term extends TermList.Node {
 	 * @param <A>
      * @return
      */
-	public <A> A innermostOnDag(FilterFn filter, PostOp<A> postOp) {
+	/*public <A> A innermostOnDag(FilterFn filter, PostOp<A> postOp) {
 		TreeSet<Term> queue = new TreeSet<>(TermList.CMP);
 		TreeSet<Term> queue2 = new TreeSet<>(TermList.CMP);
 
@@ -279,36 +238,64 @@ public abstract class Term extends TermList.Node {
 
 		// return the last mapped element which is root.
 		return a;
-	}
+	}*/
 
 	// TODO: Development rewriting
 	// TODO: Don't forget the extension of development rewriting.
 
+	/**
+	 * Shifts the indices of lambda variables.
+	 * @param scope
+	 * @param shift
+	 * @param cutoff
+     * @return
+     */
 	protected Term shift(TermList scope, int shift, int cutoff) {
-		// fixme get rid of 'instanceof'
-		return innermostOnDag((v, p) -> !(v instanceof Lambda),
-				(v, args) -> {
-					if(v instanceof Lambda) {
-						Lambda lam = (Lambda) v;
+		DAGVisitor<Term> visitor = new DAGVisitor<Term>() {
+			ArrayList<Term> args = null; // kind-of a singleton
 
-						// these ones don't have arguments.
-						return Lambda.create(parent, lam.t.shift(scope, shift, cutoff + 1));
-					} else if(v instanceof LambdaVar) {
-						LambdaVar lv = (LambdaVar) v;
-						if(lv.scope == scope && lv.index >= cutoff) {
-							return LambdaVar.create(parent, lv.index + shift, parent);
-						}
+			@Override
+			protected Term eval(Term t) {
+				// visit all subterms. We fetch the return value later using 'get'.
+				for(int i = 0; i < t.arity(); ++i) {
+					// recursively visit subnodes
+					t.arg(i).visit(this);
+				}
+
+				if(t.arity() != 0) {
+					// initialize args
+					if(args == null) {
+						args = new ArrayList<>(t.arity());
+					} else {
+						args.ensureCapacity(t.arity());
+						args.clear();
 					}
+				}
 
-					// fill in blanks in args
-					for(int i = 0; i < v.arity(); ++i) {
-						if(args.get(i) == null) {
-							args.set(i, v.arg(i));
-						}
-					}
+				for(int i = 0; i < t.arity(); ++i) {
+					args.add(get(t.arg(i)));
+				}
 
-					return v.copy(parent, args);
-				});
+				return t.copy(parent, t.arity() == 0 ? null : args);
+			}
+
+			protected Term evalLambda(Lambda l) {
+				// call shift recursively
+				// this cannot be done in the dag
+				// fixme possible improvement is to store the dag?
+				return Lambda.create(parent, l.t.shift(scope, shift, cutoff + 1));
+			}
+
+			protected Term evalLambdaVar(LambdaVar lv) {
+				if(lv.scope == scope && lv.index >= cutoff) {
+					return LambdaVar.create(parent, lv.index + shift, parent);
+				} else {
+					return lv;
+				}
+			}
+		};
+
+		return visit(visitor);
 	}
 
 	/**
@@ -319,83 +306,54 @@ public abstract class Term extends TermList.Node {
 	 * @return
 	 */
 	protected Term substitute(TermList scope, int index, Term replacement) {
-		// fixme get rid of instanceof
-		return innermostOnDag((t, p) -> !(t instanceof Lambda),
-				(t, args) -> {
-					if(t instanceof Lambda) {
-						Lambda lam = (Lambda) t;
-						Term tSubst = lam.t.substitute(scope, index + 1, replacement.shift(parent, 1, 0));
-						return Lambda.create(parent, tSubst);
-					} else if(t instanceof LambdaVar) {
-						LambdaVar lv = (LambdaVar) t;
-						if(lv.index == index && lv.scope == scope) {
-							return replacement;
-						}
+		DAGVisitor<Term> visitor = new DAGVisitor<Term>() {
+			ArrayList<Term> args = null; // kind-of a singleton
+
+			@Override
+			protected Term eval(Term t) {
+				for(int i = 0; i < t.arity(); ++i) {
+					// recursively visit subnodes
+					t.arg(i).visit(this);
+				}
+
+				if(t.arity() != 0) {
+					// initialize args
+					if(args == null) {
+						args = new ArrayList<>(t.arity());
+					} else {
+						args.ensureCapacity(t.arity());
+						args.clear();
 					}
+				}
 
-					// in all other cases
+				for(int i = 0; i < t.arity(); ++i) {
+					// recursively visit subnodes
+					args.add(get(t.arg(i)));
+				}
 
-					// fill in blanks in args
-					for(int i = 0; i < t.arity(); ++i) {
-						if(args.get(i) == null) {
-							args.set(i, t.arg(i));
-						}
-					}
+				return t.copy(parent, t.arity() == 0 ? null : args);
+			}
 
-					return t.copy(parent, args);
-				});
-	}
+			protected Term evalLambda(Lambda l) {
+				Term tSubst = l.t.substitute(scope, index + 1, replacement.shift(parent, 1, 0));
+				return Lambda.create(parent, tSubst);
+			}
 
-
-
-
-	/** Applies an operation to all subterms on this term based on the arguments.
-	 * This one uses recursion.
-	 * @param filter
-	 * @param postOp
-	 * @param <A>
-	 * @return
-	 */
-	public <A> A innermostOnTree(FilterFn filter, PostOp<A> postOp) {
-		Stack<Term> stack = new Stack<>();
-		Stack<ArrayList<A>> argStack = new Stack<>();
-
-		Term t = this;
-		ArrayList<A> args = new ArrayList<>(t.arity());
-		int p = 0; // always same as args.size()
-
-		// here we start.
-		while(true) {
-			while(p < t.arity()) {
-				if(filter.apply(t, p)) {
-					// recursive call
-					stack.push(t);
-					argStack.push(args);
-
-					// reinit local variables
-					t = t.arg(p);
-					args = new ArrayList<>(t.arity());
-					p = 0;
+			protected Term evalLambdaVar(LambdaVar lv) {
+				if(lv.index == index && lv.scope == scope) {
+					return replacement;
 				} else {
-					args.add(null);
-					p++;
+					return lv;
 				}
 			}
+		};
 
-			A a = postOp.apply(t, args);
+		return visit(visitor);
 
-			if(stack.isEmpty()) {
-				// we are done.
-				return a;
-			}
-
-			args = argStack.pop();
-			args.add(a);
-
-			t  = stack.pop();
-			p = args.size();
-		}
 	}
+
+
+
 
 
 
